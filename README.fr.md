@@ -19,12 +19,15 @@
   <a href="README.ta.md">தமிழ்</a> |
   <a href="README.ar.md">العربية</a> |
   <a href="README.hi.md">हिन्दी</a> |
-  <a href="README.tr.md">Türkçe</a>
+  <a href="README.tr.md">Türkçe</a> |
+  <a href="README.vi.md">Tiếng Việt</a>
 </p>
+
+<p align="center"><a href="https://career-ops.org/fr/docs?utm_source=readme&utm_content=fr">Documentation complète en français : career-ops.org/fr/docs</a></p>
 
 <!-- The non-breaking spaces (&nbsp;) and word joiners (&#8288;) below decide where each line wraps on a phone. Keep them when editing. -->
 
-<p align="center"><a href="https://github.com/santifer"><img src="docs/avatar-santifer.png" width="48" height="48" align="middle" alt="Santiago Fernández de Valderrama Aparicio"></a>&nbsp;&nbsp;<a href="https://github.com/santifer"><strong>santifer</strong></a></p>
+<p align="center"><a href="https://github.com/santifer"><img src="docs/avatar-santifer.png" width="48" height="48" align="middle" alt="Santiago Fernández de Valderrama Aparicio"></a>&nbsp;&nbsp;Créé par <a href="https://github.com/santifer"><strong>@santifer</strong></a></p>
 
 <p align="center">
 <strong>Des mois à envoyer des CV dans le&nbsp;silence.</strong><br>
@@ -180,7 +183,7 @@ Il reformule ton CV ; il ne doit jamais l'inventer. Un contrôle dans le code bl
 | **Banque d'histoires d'entretien** | Accumule des récits STAR+Réflexion au fil des évaluations : 5 à 10 histoires maîtresses que tu peux adapter aux questions comportementales qu'on te pose |
 | **Scripts de négociation** | Cadres de négociation salariale, réponse aux décotes géographiques, levier des offres concurrentes                                     |
 | **Brouillons d'e-mails de candidature** | E-mails formels pour recruteur, cooptation ou candidature spontanée à partir d'un rapport ou d'une description collée, avec objet, liste des pièces jointes, points d'adéquation sourcés et bloc de contact issu de ton profil. Brouillon uniquement : career-ops n'envoie, ne soumet et ne clique jamais rien. |
-| **Scanner de portails**  | 100+ entreprises préconfigurées (Anthropic, OpenAI, ElevenLabs, Retool, n8n...) + requêtes personnalisées sur Ashby, Greenhouse, Lever, Wellfound |
+| **Scanner de portails**  | 100+ entreprises préconfigurées (Anthropic, OpenAI, ElevenLabs, Retool, n8n...) + requêtes de recherche web personnalisées sur Ashby, Greenhouse, Lever, Wellfound |
 | **Découverte d'entreprises financées** | La commande `company:funded`, pensée pour relire avant d'agir, fait remonter les entreprises récemment financées et des diagnostics de source à partir de flux publics structurés, sans toucher à tes données |
 | **Traitement par lots**  | Évaluation en parallèle avec des workers CLI sans interface (`claude -p` / `opencode run`)                                               |
 | **Dashboard TUI**        | Interface terminal pour parcourir, filtrer et trier ton pipeline                                                                         |
@@ -288,7 +291,6 @@ career-ops utilise un routeur de commandes partagé. Dans les CLI qui enregistre
 /career-ops interview    → Entretien interactif d'intégration du profil et du CV
 /career-ops master-profile → Importer, relire et valider ton Master Career Profile
 /career-ops eu-swe    → Calibrer une candidature SWE européenne avant le CV, la candidature ou l'entretien
-/career-ops eu-fintech → Scanner 21 portails fintech européens pour des postes de Product Manager (sans tokens)
 /career-ops interview/plan → Plan de préparation par blocs de temps pour un entretien à venir
 /career-ops interview/practice → Entretien d'entraînement, une question à la fois avec retour
 /career-ops interview/debrief → Débrief après entretien : combler les lacunes, anticiper le prochain tour
@@ -367,7 +369,7 @@ agy
 /career-ops tracker
 ```
 
-Le skill est défini selon le standard ouvert dans `.agents/skills/career-ops/SKILL.md` et lié ou référencé pour chaque CLI prise en charge (par exemple `.claude/`, `.cursor/`, `.qwen/`, `.antigravitycli/`, `.grok/`).
+Le skill est défini selon le standard ouvert dans `.agents/skills/career-ops/SKILL.md` et lié ou référencé pour chaque CLI prise en charge (par exemple `.claude/`, `.qwen/`, `.antigravitycli/`, `.grok/`). Cursor découvre automatiquement le skill partagé dans `.agents/skills/`.
 
 ## Intégration Codex
 

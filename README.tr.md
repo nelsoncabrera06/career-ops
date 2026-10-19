@@ -19,12 +19,13 @@
   <a href="README.ta.md">தமிழ்</a> |
   <a href="README.ar.md">العربية</a> |
   <a href="README.hi.md">हिन्दी</a> |
-  <a href="README.tr.md">Türkçe</a>
+  <a href="README.tr.md">Türkçe</a> |
+  <a href="README.vi.md">Tiếng Việt</a>
 </p>
 
 <!-- The non-breaking spaces (&nbsp;) and word joiners (&#8288;) below decide where each line wraps on a phone. Keep them when editing. -->
 
-<p align="center"><a href="https://github.com/santifer"><img src="docs/avatar-santifer.png" width="48" height="48" align="middle" alt="Santiago Fernández de Valderrama Aparicio"></a>&nbsp;&nbsp;<a href="https://github.com/santifer"><strong>santifer</strong></a></p>
+<p align="center"><a href="https://github.com/santifer"><img src="docs/avatar-santifer.png" width="48" height="48" align="middle" alt="Santiago Fernández de Valderrama Aparicio"></a>&nbsp;&nbsp;<a href="https://github.com/santifer"><strong>@santifer</strong></a> tarafından oluşturuldu</p>
 
 <p align="center">
 <strong>Aylarca sessizliğe CV&nbsp;gönderdim.</strong><br>
@@ -180,7 +181,7 @@ CV'ni yeniden ifade eder; asla uydurmamalıdır. Koddaki bir denetim, CV'nde de 
 | **Mülakat Hikâye Bankası** | Değerlendirmeler boyunca STAR+Refleksiyon hikâyeleri biriktirir: karşına çıkan davranışsal sorulara uyarlayabileceğin 5-10 ana hikâye                    |
 | **Pazarlık Senaryoları** | Maaş pazarlığı çerçeveleri, coğrafi indirime karşı duruş, rakip tekliflerden kaldıraç                                                    |
 | **Başvuru E-postası Taslakları** | Bir rapordan veya yapıştırılan iş tanımından işe alım uzmanına, referansla ya da soğuk başvuru için resmî e-postalar: konu satırı, ek listesi, kaynaklı uyum noktaları ve profilden gelen iletişim bloğu ile. Yalnızca taslak: career-ops asla göndermez, iletmez veya hiçbir şeye tıklamaz. |
-| **Portal Tarayıcı**      | 100+ önceden yapılandırılmış şirket (Anthropic, OpenAI, ElevenLabs, Retool, n8n...) + Ashby, Greenhouse, Lever, Wellfound üzerinde özel sorgular |
+| **Portal Tarayıcı**      | 100+ önceden yapılandırılmış şirket (Anthropic, OpenAI, ElevenLabs, Retool, n8n...) + Ashby, Greenhouse, Lever, Wellfound üzerinde özel web arama sorguları |
 | **Yatırım Almış Şirket Keşfi** | Önce incele yaklaşımlı `company:funded` komutu, yapılandırılmış açık akışlardan yakın zamanda yatırım almış şirketleri ve kaynak tanılamalarını verilerini düzenlemeden ortaya çıkarır |
 | **Toplu İşleme**         | Başsız CLI işçileriyle paralel değerlendirme (`claude -p` / `opencode run`)                                                              |
 | **Dashboard TUI**        | Hattını gezmek, filtrelemek ve sıralamak için terminal arayüzü                                                                           |
@@ -288,7 +289,6 @@ career-ops ortak bir komut yönlendiricisi kullanır. Eğik çizgi komutlarını
 /career-ops interview    → Etkileşimli profil/CV tanışma mülakatı
 /career-ops master-profile → Master Career Profile'ını içe aktar, gözden geçir ve doğrula
 /career-ops eu-swe    → CV/başvuru/mülakat öncesinde bir Avrupa SWE başvurusunu kalibre et
-/career-ops eu-fintech → 21 AB fintech portalını Product Manager rolleri için tara (token harcamaz)
 /career-ops interview/plan → Yaklaşan bir mülakat için zaman bloklu hazırlık planı
 /career-ops interview/practice → Pratik mülakat, geri bildirimle her seferinde bir soru
 /career-ops interview/debrief → Mülakat sonrası değerlendirme: açıkları kapat, sonraki turu öngör
@@ -367,7 +367,7 @@ agy
 /career-ops tracker
 ```
 
-Beceri, açık standarda göre `.agents/skills/career-ops/SKILL.md` içinde tanımlanır ve desteklenen her CLI için (ör. `.claude/`, `.cursor/`, `.qwen/`, `.antigravitycli/`, `.grok/`) sembolik bağ ile bağlanır veya referans verilir.
+Beceri, açık standarda göre `.agents/skills/career-ops/SKILL.md` içinde tanımlanır ve desteklenen her CLI için (ör. `.claude/`, `.qwen/`, `.antigravitycli/`, `.grok/`) sembolik bağ ile bağlanır veya referans verilir. Cursor, `.agents/skills/` içindeki ortak beceriyi otomatik olarak keşfeder.
 
 ## Codex Entegrasyonu
 

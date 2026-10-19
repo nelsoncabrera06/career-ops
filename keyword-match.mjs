@@ -2,7 +2,8 @@
 /**
  * keyword-match.mjs — ATS keyword coverage check for career-ops
  *
- * Closes the evaluation loop: given a report's `## Keywords extracted` block and
+ * Closes the evaluation loop: given a report's keyword section (`## Keywords
+ * extracted`, or the translated heading a localized evaluation mode writes) and
  * a CV, reports which JD keywords the CV actually covers — the way an ATS parser
  * would — so gaps can be closed before applying.
  *
@@ -22,6 +23,7 @@ import { readFileSync, existsSync, statSync  } from 'fs';
 import { join, isAbsolute, basename } from 'path';
 import { isMainModule } from './lib/is-main-module.mjs';
 import { getCareerOpsRoot } from './path-resolver.mjs';
+import { extractSkills } from './skill-extract.mjs';
 
 /**
  * Small, deliberately conservative map of interchangeable ATS surface forms.
@@ -72,11 +74,13 @@ export function countOccurrences(term, text) {
 }
 
 /**
- * Conservative singular/plural variants of a term. Skips short tokens and
- * acronyms (length <= 3) because stripping or appending an "s" there yields
- * noisy, meaningless search tokens (aws -> aw, k8s -> k8, js -> j). For longer
- * terms it only ever ADDS a candidate form; boundary-aware counting keeps these
- * from creating false positives (the "kubernete" form never hits "kubernetes").
+ * Conservative singular/plural variants of a term. An "s" is never stripped
+ * from a token of three characters or fewer (aws -> aw, k8s -> k8, js -> j are
+ * meaningless), and one is appended only from three characters up: that is
+ * where the acronyms a CV pluralizes sit (llm -> llms, api -> apis, gpu ->
+ * gpus), while a two-letter "+s" is often another word (it -> its, hr -> hrs).
+ * It only ever ADDS a candidate form; boundary-aware counting keeps these from
+ * creating false positives (the "kubernete" form never hits "kubernetes").
  *
  * @param {string} term - Keyword or synonym.
  * @returns {string[]} Distinct candidate forms.
@@ -84,24 +88,26 @@ export function countOccurrences(term, text) {
 export function variantForms(term) {
   const t = normalizeText(term);
   const forms = new Set([t]);
-  if (t.length <= 3) return [...forms];
-  if (t.endsWith('s')) forms.add(t.slice(0, -1));
-  else forms.add(t + 's');
+  if (t.length < 3) return [...forms];
+  if (!t.endsWith('s')) forms.add(t + 's');
+  else if (t.length > 3) forms.add(t.slice(0, -1));
   return [...forms];
 }
 
 /**
  * All surface forms to search for a keyword: its own plural variants plus the
- * variants of every member of any synonym group it belongs to.
+ * variants of every member of any synonym group one of those forms belongs to,
+ * so `LLMs` reaches the group that `LLM` is in.
  *
  * @param {string} keyword - JD keyword.
  * @returns {string[]} Distinct surface forms.
  */
 export function expandTerms(keyword) {
   const k = normalizeText(keyword);
-  const terms = new Set(variantForms(k));
+  const forms = variantForms(k);
+  const terms = new Set(forms);
   for (const group of SYNONYMS) {
-    if (!group.includes(k)) continue;
+    if (!forms.some((form) => group.includes(form))) continue;
     for (const member of group) {
       if (member === k) continue;
       for (const v of variantForms(member)) terms.add(v);
@@ -164,10 +170,79 @@ export function analyzeCoverage(keywords, cvText) {
 }
 
 /**
- * Pull keywords out of a report's `## Keywords extracted` block. Liberal:
- * accepts bulleted, comma-separated, or one-per-line entries; stops at the next
- * level-2 heading; skips an empty/placeholder parenthetical line. Returns [] if
- * the block is absent.
+ * The keyword section's heading as each evaluation mode writes it. Only
+ * modes/oferta.md, modes/ar/fursah.md and modes/ja/kyujin.md use the English
+ * title; the other sixteen modes translate it, so their reports had no block
+ * this reader could find and the coverage check modes/pdf.md runs on the
+ * tailored CV exited 1 on every one of them.
+ *
+ * Each title is copied from the mode that writes it, never translated here, the
+ * sourcing rule ARCHETYPE_LABELS in analyze-patterns.mjs follows. A title stays
+ * after its mode changes, because reports already on disk carry it.
+ * tests/keyword-match-localized-headings.test.mjs reads every evaluation mode
+ * and fails on a keyword heading that is missing here.
+ */
+export const KEYWORDS_HEADINGS = [
+  'Keywords extracted',             // en, ar, ja — modes/oferta.md, modes/ar/fursah.md, modes/ja/kyujin.md
+  'Extracted Keywords',             // en — batch/batch-prompt.md (batch workers)
+  'Udtrukne nøgleord',              // da — modes/da/oferta.md
+  'Extrahierte Keywords',           // de — modes/de/angebot.md
+  'Palabras clave extraídas',       // es — modes/es/oferta.md
+  'Mots-cles extraits',             // fr — modes/fr/offre.md
+  'निकाले गए Keywords',             // hi — modes/hi/naukri.md
+  'Kata kunci terekstraksi',        // id — modes/id/lowongan.md
+  'Parole chiave estratte',         // it — modes/it/annuncio.md
+  '추출한 키워드',                  // ko — modes/ko/gonggo.md
+  'Geextraheerde trefwoorden',      // nl — modes/nl/vacature.md
+  'Wyekstrahowane słowa kluczowe',  // pl — modes/pl/oferta.md
+  'Keywords extraídas',             // pt — modes/pt/oferta.md
+  'Извлечённые ключевые слова',     // ru — modes/ru/oferta.md
+  'Çıkarılan Anahtar Kelimeler',    // tr — modes/tr/is-ilani.md
+  'Витягнуті ключові слова',        // ua — modes/ua/oferta.md
+  'ATS 关键词提取',                 // zh — modes/zh/oferta.md
+  'ATS 關鍵字擷取',                 // zh-TW — modes/zh-TW/oferta.md
+];
+
+/**
+ * Comparison key for a heading title: case, runs of whitespace and Latin or
+ * Cyrillic accents are ignored. Accents matter in practice: modes/fr/offre.md
+ * writes `Mots-cles`, which French spells with an accent that agents restore
+ * (analyze-patterns.mjs meets the same slip as `Archétype`), and Russian is
+ * often typed with `е` for `ё`. Only U+0300–U+036F is removed after NFD;
+ * Devanagari vowel signs and Hangul jamo lie outside that block, so those
+ * titles still compare exactly.
+ *
+ * @param {string} title - Heading text after the `##`.
+ * @returns {string} Comparison key.
+ */
+function headingKey(title) {
+  return normalizeText(title).normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+const KEYWORDS_HEADING_KEYS = KEYWORDS_HEADINGS.map(headingKey);
+
+/**
+ * Whether a trimmed line opens the keyword section: a level-2 heading whose
+ * title is one of KEYWORDS_HEADINGS and does not run on into a longer word, so
+ * a suffix such as `(18)` is still accepted, as it always was for the English
+ * title.
+ *
+ * @param {string} line - Trimmed markdown line.
+ * @returns {boolean} True for a keyword-section heading.
+ */
+function isKeywordsHeading(line) {
+  const m = /^##\s+(\S.*)$/.exec(line);
+  if (!m) return false;
+  const title = headingKey(m[1]);
+  return KEYWORDS_HEADING_KEYS.some((key) =>
+    title.startsWith(key) && !/^[\p{L}\p{N}]/u.test(title.slice(key.length)));
+}
+
+/**
+ * Pull keywords out of a report's keyword section, opened by any heading in
+ * KEYWORDS_HEADINGS. Liberal: accepts bulleted, comma-separated, or
+ * one-per-line entries; stops at the next level-2 heading; skips an
+ * empty/placeholder parenthetical line. Returns [] if the block is absent.
  *
  * @param {string} reportText - Full report markdown.
  * @returns {string[]} Extracted keywords in order.
@@ -178,7 +253,7 @@ export function extractKeywords(reportText) {
   let inBlock = false;
   for (const rawLine of lines) {
     const line = rawLine.trim();
-    if (/^##\s+keywords\s+extracted\b/i.test(line)) { inBlock = true; continue; }
+    if (isKeywordsHeading(line)) { inBlock = true; continue; }
     if (!inBlock) continue;
     if (/^##\s+/.test(line)) break;
     if (!line) continue;
@@ -190,6 +265,26 @@ export function extractKeywords(reportText) {
     }
   }
   return out;
+}
+
+/**
+ * The report's archived job description: the text under
+ * `## Job Description (archived verbatim)` up to the next level-2 heading, or
+ * the `jds/` file that section points to (modes/oferta.md, JD archival).
+ *
+ * @param {string} reportText - Full report markdown.
+ * @param {string} root - Directory that holds `jds/`.
+ * @returns {string} The JD text, or '' when the report has no archive.
+ */
+export function archivedJdText(reportText, root) {
+  const m = /^## Job Description\b[^\n]*\n([\s\S]*?)(?=^##\s|(?![\s\S]))/m.exec(String(reportText || ''));
+  if (!m) return '';
+  const section = m[1].trim();
+  if (!/^See jds\/\S+ for the full archive\b/.test(section)) return m[1];
+  const pointer = /^See (jds\/[A-Za-z0-9][\w.-]*) for the full archive\b/.exec(section);
+  if (!pointer) return '';
+  const jdPath = join(root, pointer[1]);
+  return existsSync(jdPath) ? readFileSync(jdPath, 'utf-8') : '';
 }
 
 /**
@@ -229,7 +324,7 @@ export function htmlToText(html) {
  * @param {string} [sourceLabel] - Human label for the scanned document.
  * @returns {string} Markdown block.
  */
-export function formatCoverageMarkdown(result, sourceLabel) {
+export function formatCoverageMarkdown(result, sourceLabel, keywordNote) {
   const { coveragePct, presentCount, total, present, thin, missing } = result;
   const out = [
     '## Keyword Coverage',
@@ -238,6 +333,7 @@ export function formatCoverageMarkdown(result, sourceLabel) {
     '',
   ];
   if (sourceLabel) out.push(`_Scanned: ${sourceLabel}._`, '');
+  if (keywordNote) out.push(`_${keywordNote}_`, '');
   out.push(`**Present (${present.length}):** ${present.join(', ') || '—'}`, '');
   if (thin.length) {
     out.push(`**Thin — mentioned once, consider reinforcing (${thin.length}):** ${thin.join(', ')}`, '');
@@ -352,11 +448,25 @@ if (isMainModule(import.meta.url)) {
       process.exit(1);
     }
 
-    const keywords = extractKeywords(reportText);
+    let keywords = extractKeywords(reportText);
+    let keywordSource = 'report';
+    let keywordNote = null;
 
     if (keywords.length === 0) {
-      console.error('No "## Keywords extracted" block found (or it is empty).');
-      process.exit(1);
+      keywords = [...extractSkills(archivedJdText(reportText, getCareerOpsRoot()))].sort();
+      if (keywords.length === 0) {
+        console.error(
+          'No "## Keywords extracted" block found (or it is empty), and no known skills were found under ' +
+          '"## Job Description (archived verbatim)". Add the 15-20 keyword section to the report and rerun.');
+        process.exit(1);
+      }
+      keywordSource = 'archived-jd';
+      keywordNote =
+        `Keywords: ${keywords.length} taken from the archived job description, because the report has no ` +
+        'keyword section. Only names in the skill vocabulary are found, so add the 15-20 keyword section to the report.';
+      console.error(
+        `⚠️  ${reportArg} has no "## Keywords extracted" section. Scoring ${keywords.length} skills read from the archived ` +
+        'job description instead. Tell the user, and add the keyword section to the report.');
     }
 
     const cvPath = cvArg
@@ -379,6 +489,8 @@ if (isMainModule(import.meta.url)) {
     const sourceLabel = cvArg ? basename(cvPath) : 'cv.md (base CV, before per-role tailoring)';
 
     const result = analyzeCoverage(keywords, cvText);
-    console.log(jsonMode ? JSON.stringify(result, null, 2) : formatCoverageMarkdown(result, sourceLabel));
+    console.log(jsonMode
+      ? JSON.stringify({ ...result, keywordSource }, null, 2)
+      : formatCoverageMarkdown(result, sourceLabel, keywordNote));
   }
 }
