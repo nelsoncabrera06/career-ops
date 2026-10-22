@@ -113,6 +113,12 @@ try {
     fail(`postingUrl(bumeran) = ${postingUrl('bumeran', 1118490931, 'https://www.zonajobs.com.ar')}`);
   }
 
+  if (postingUrl('zonajobs-api', 1118393927, 'https://www.zonajobs.com.ar') === 'https://www.bumeran.com.ar/empleos/1118393927.html') {
+    pass('postingUrl() corrects a legacy 10-digit ZonaJobs scan row to the Bumeran host');
+  } else {
+    fail(`postingUrl(legacy zonajobs-api) = ${postingUrl('zonajobs-api', 1118393927, 'https://www.zonajobs.com.ar')}`);
+  }
+
   if (postingUrl(undefined, 42, 'https://www.zonajobs.com.ar') === 'https://www.zonajobs.com.ar/empleos/42.html') {
     pass('postingUrl() falls back to the searched host when the item has no portal field');
   } else {

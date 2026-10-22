@@ -178,6 +178,12 @@ const PORTAL_ORIGINS = {
   bumeran: 'https://www.bumeran.com.ar',
 };
 
+// Legacy ZonaJobs identifiers (10-digit IDs) are served from Bumeran's merged
+// Navent inventory even when an old scan row labels the source zonajobs-api.
+// Current ZonaJobs-native IDs are 7 digits. Keep the ID-only permalink stable,
+// but choose the matching host from the observed ID shape when portal metadata
+// is absent/stale.
+
 /**
  * A stable posting URL, on the posting's OWN portal. The board's own links carry
  * a human slug (`/empleos/analista-funcional->-industria-farmaceutica-2192219.html`)
@@ -195,8 +201,9 @@ const PORTAL_ORIGINS = {
  */
 export function postingUrl(portal, id, fallbackOrigin) {
   const key = typeof portal === 'string' ? portal.trim().toLowerCase() : '';
-  const origin = PORTAL_ORIGINS[key] ?? fallbackOrigin;
-  return `${origin}/empleos/${String(id).trim()}.html`;
+  const value = String(id).trim();
+  const origin = PORTAL_ORIGINS[key] ?? (/^\d{10}$/.test(value) ? PORTAL_ORIGINS.bumeran : fallbackOrigin);
+  return `${origin}/empleos/${value}.html`;
 }
 
 /**

@@ -127,7 +127,34 @@ export function TodayDashboard({
         </div>
       </section>
 
-      {/* A. Follow-ups due (demand loop) */}
+      {/* A. Awaiting your decision: the most actionable queue belongs first. */}
+      {awaiting.length > 0 && (
+        <Section icon={CircleHelp} title="Awaiting your decision" hint="Scored — apply or skip">
+          <div className="grid gap-2.5 sm:grid-cols-2">
+            {awaiting.map((a) => (
+              <DecisionCard key={a.n} app={a} />
+            ))}
+          </div>
+        </Section>
+      )}
+
+      {/* B. Fresh matches this week (supply loop) */}
+      {fresh.length > 0 && (
+        <Section icon={Sparkles} title="Fresh matches this week" hint="Found in free scans during the last 7 days · not yet evaluated">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {fresh.slice(0, 6).map((o) => (
+              <DiscoveryCard key={o.url} offer={o} inPipeline={inboxUrls.has(o.url)} />
+            ))}
+          </div>
+          {fresh.length > 6 && (
+            <Link href="/explore?view=fresh" className="mt-3 inline-flex items-center text-sm text-muted transition hover:text-brand max-sm:min-h-[44px]">
+              See all {freshCount} →
+            </Link>
+          )}
+        </Section>
+      )}
+
+      {/* C. Follow-ups due (demand loop) */}
       {followups.length > 0 ? (
         <Section icon={Bell} title="Follow-ups due" hint="Keep your applications alive — a nudge beats silence">
           <div className="grid gap-2.5">
@@ -151,33 +178,6 @@ export function TodayDashboard({
             </p>
           </Section>
         )
-      )}
-
-      {/* B. Awaiting your decision */}
-      {awaiting.length > 0 && (
-        <Section icon={CircleHelp} title="Awaiting your decision" hint="Scored — apply or skip">
-          <div className="grid gap-2.5 sm:grid-cols-2">
-            {awaiting.map((a) => (
-              <DecisionCard key={a.n} app={a} />
-            ))}
-          </div>
-        </Section>
-      )}
-
-      {/* C. Fresh matches this week (supply loop) */}
-      {fresh.length > 0 && (
-        <Section icon={Sparkles} title="Fresh matches this week" hint="Found by your free scans · 0 tokens">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {fresh.slice(0, 6).map((o) => (
-              <DiscoveryCard key={o.url} offer={o} inPipeline={inboxUrls.has(o.url)} />
-            ))}
-          </div>
-          {fresh.length > 6 && (
-            <Link href="/explore?view=fresh" className="mt-3 inline-flex items-center text-sm text-muted transition hover:text-brand max-sm:min-h-[44px]">
-              See all {freshCount} →
-            </Link>
-          )}
-        </Section>
       )}
 
       {allClear && (
