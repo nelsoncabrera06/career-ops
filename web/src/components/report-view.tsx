@@ -19,6 +19,7 @@ import { CompanyLogo } from "@/components/company-logo";
 import { ScoreMethodology } from "@/components/score-methodology";
 import { GeneratePdfButton } from "@/components/generate-pdf-button";
 import { ApplyButton } from "@/components/apply-button";
+import { MarkAppliedButton } from "@/components/mark-applied-button";
 import { DeleteFromTracker } from "@/components/delete-from-tracker";
 import { ReportMarkdown } from "@/components/report-markdown";
 import { companyPresentation } from "@/lib/company-presentation.mjs";
@@ -183,12 +184,15 @@ export function ReportView({
                 </div>
                 {reason && <p className="mt-4 text-[15px] font-medium leading-relaxed text-foreground">{reason}</p>}
                 <div className="mt-4">
-                  <ApplyButton
-                    n={id}
-                    url={applyUrl}
-                    company={companyName}
-                    quiet={quietApply}
-                  />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <ApplyButton
+                      n={id}
+                      url={applyUrl}
+                      company={companyName}
+                      quiet={quietApply}
+                    />
+                    {app && app.status !== "Applied" && <MarkAppliedButton n={id} />}
+                  </div>
                 </div>
               </div>
             );
