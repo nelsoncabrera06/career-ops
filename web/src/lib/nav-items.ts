@@ -15,6 +15,8 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/explore", label: "Explore", icon: Compass, chip: "New" },
   { href: "/pipeline", label: "Pipeline", icon: ListChecks },
   { href: "/followups", label: "Follow-ups", icon: Send },
+  // "Portals" = every configured scanning source (job boards + company boards),
+  // which is what portals.yml is. Route stays /portals.
   { href: "/portals", label: "Portals", icon: Radar },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/cv", label: "CV", icon: FileText },

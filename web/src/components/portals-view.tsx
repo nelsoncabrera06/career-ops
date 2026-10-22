@@ -57,9 +57,9 @@ export function PortalsView() {
           className="inline-flex items-center gap-2 rounded-full bg-brand px-4 py-2 text-sm font-medium text-brand-foreground transition-colors hover:bg-brand-200 disabled:opacity-50 max-sm:min-h-[44px]"
         >
           {loading ? <Loader2 className="size-4 animate-spin" /> : <Radar className="size-4" />}
-          Check portal health
+          Check every source
         </button>
-        {loading && <span className="text-xs text-faint">Probing each company&apos;s ATS… (~30–60s)</span>}
+        {loading && <span className="text-xs text-faint">Probing every board in portals.yml… (~1–3 min)</span>}
       </div>
 
       {res && !res.available && (

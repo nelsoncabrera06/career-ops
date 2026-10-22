@@ -5,7 +5,11 @@ import { careerOpsRoot, rootScript } from "@/lib/career-ops";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+// A full sweep of every tracked board is a real network walk: measured ~3m15s
+// over 142 companies, which the old 120s cap cut off mid-run and made the page
+// report "0 live · 0 broken · 0 tracked" instead of the boards that actually
+// answered. Give it room past the observed time.
+export const maxDuration = 240;
 
 // Orchestrates the core's verify-portals.mjs (#1016) — the SAME ATS-slug
 // validator the CLI uses. Catches the silent 404s that quietly drop a company
@@ -32,7 +36,7 @@ export async function GET() {
     execFile(
       "node",
       [verifyPortals],
-      { cwd: root, timeout: 110_000, maxBuffer: 4 * 1024 * 1024 },
+      { cwd: root, timeout: 240_000, maxBuffer: 4 * 1024 * 1024 },
       (_e, out, err) => resolve((out || "") + (err || "")),
     );
   });
