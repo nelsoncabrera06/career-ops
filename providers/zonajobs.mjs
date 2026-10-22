@@ -34,6 +34,13 @@
 // posting twice. Enable ONE. This provider reads whichever host the entry points
 // at (`siteFor()`), so switching is a one-line change.
 //
+// …and ONE is enough for full coverage, because the pool is already MERGED: a
+// search against either host returns both portals' postings, each tagged with its
+// own `portal` field (`"zonajobs"` or `"bumeran"`). Posting URLs are therefore
+// built on the item's own portal, not on the host we searched — see
+// `PORTAL_ORIGINS` / `postingUrl()`. Building them all on the searched host
+// silently produced 404s for the other portal's share.
+//
 // robots.txt (both hosts, 2026-10-21): the disallowed shapes are filter URLs
 // carrying `?recientes=true`, `?relevantes=true`, `?localidades=`, the
 // `/empleos.html/{100,111}` sort prefixes, and `/empleos-busquedaext-`. This
@@ -158,16 +165,37 @@ export function composeLocation(city, modality) {
 }
 
 /**
- * A stable posting URL. The board's own links carry a human slug
- * (`/empleos/analista-funcional->-industria-farmaceutica-2192219.html`) that the
- * client rewrites from the title; the id-only form resolves to the same page and
- * does not change when an employer edits the title, so it is the better dedup
- * key.
- *
- * @param {string} origin
- * @param {unknown} id
+ * Where each portal's postings actually live. A search against EITHER host
+ * returns the MERGED Navent pool, and every item carries its own `portal` field
+ * (measured 2026-10-21 on the technology area: a ZonaJobs search answers 431
+ * items — 152 `portal: "zonajobs"` with 7-digit ids and 279 `portal: "bumeran"`
+ * with 10-digit ids). Building every URL on the host we searched therefore
+ * produces 404s for the other portal's share: `zonajobs.com.ar/empleos/1118490931`
+ * redirects to `/404`, while `bumeran.com.ar/empleos/1118490931` resolves.
  */
-export function postingUrl(origin, id) {
+const PORTAL_ORIGINS = {
+  zonajobs: 'https://www.zonajobs.com.ar',
+  bumeran: 'https://www.bumeran.com.ar',
+};
+
+/**
+ * A stable posting URL, on the posting's OWN portal. The board's own links carry
+ * a human slug (`/empleos/analista-funcional->-industria-farmaceutica-2192219.html`)
+ * that the client rewrites from the title; the id-only form resolves to the same
+ * page and does not change when an employer edits the title, so it is the better
+ * dedup key.
+ *
+ * `portal` is the item's own `portal` field; an unknown/absent value falls back
+ * to the host we searched, which is correct for the majority portal and keeps a
+ * future portal name from producing a broken URL.
+ *
+ * @param {unknown} portal  the item's `portal` field
+ * @param {unknown} id
+ * @param {string} fallbackOrigin  the host this search was sent to
+ */
+export function postingUrl(portal, id, fallbackOrigin) {
+  const key = typeof portal === 'string' ? portal.trim().toLowerCase() : '';
+  const origin = PORTAL_ORIGINS[key] ?? fallbackOrigin;
   return `${origin}/empleos/${String(id).trim()}.html`;
 }
 
@@ -199,7 +227,7 @@ export function parseResults(payload, origin) {
     const card = {
       id: String(id),
       title,
-      url: postingUrl(origin, id),
+      url: postingUrl(item?.portal, id, origin),
       company,
       location: composeLocation(item?.localizacion, item?.modalidadTrabajo),
     };

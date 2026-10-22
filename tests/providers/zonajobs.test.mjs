@@ -99,10 +99,24 @@ try {
     fail(`composeLocation(doubling) = ${JSON.stringify(composeLocation('Remoto, Argentina', 'Remoto'))}`);
   }
 
-  if (postingUrl('https://www.zonajobs.com.ar', 2192308) === 'https://www.zonajobs.com.ar/empleos/2192308.html') {
-    pass('postingUrl() builds the id-only canonical form');
+  if (postingUrl('zonajobs', 2192308, 'https://www.bumeran.com.ar') === 'https://www.zonajobs.com.ar/empleos/2192308.html') {
+    pass('postingUrl() builds the id-only canonical form on the item\'s own portal');
   } else {
-    fail(`postingUrl() = ${postingUrl('https://www.zonajobs.com.ar', 2192308)}`);
+    fail(`postingUrl(zonajobs) = ${postingUrl('zonajobs', 2192308, 'https://www.bumeran.com.ar')}`);
+  }
+
+  // The bug this guards (found live 2026-10-21): a ZonaJobs search returns the
+  // merged pool, and building Bumeran ids on zonajobs.com.ar yields /404.
+  if (postingUrl('bumeran', 1118490931, 'https://www.zonajobs.com.ar') === 'https://www.bumeran.com.ar/empleos/1118490931.html') {
+    pass('postingUrl() sends a bumeran-portal posting to bumeran.com.ar even when zonajobs was searched');
+  } else {
+    fail(`postingUrl(bumeran) = ${postingUrl('bumeran', 1118490931, 'https://www.zonajobs.com.ar')}`);
+  }
+
+  if (postingUrl(undefined, 42, 'https://www.zonajobs.com.ar') === 'https://www.zonajobs.com.ar/empleos/42.html') {
+    pass('postingUrl() falls back to the searched host when the item has no portal field');
+  } else {
+    fail(`postingUrl(unknown portal) = ${postingUrl(undefined, 42, 'https://www.zonajobs.com.ar')}`);
   }
 
   // ── payload mapping ──────────────────────────────────────────────────────
@@ -113,6 +127,7 @@ try {
     content: [
       {
         id: 2192308,
+        portal: 'zonajobs',
         titulo: 'DevOps Engineer Senior',
         empresa: 'Netkel Consulting',
         confidencial: false,
@@ -122,6 +137,7 @@ try {
       },
       {
         id: 2192191,
+        portal: 'zonajobs',
         titulo: 'DevOps Engineer - Azzure',
         empresa: 'Kinetic Talent',
         confidencial: false,
@@ -131,6 +147,7 @@ try {
       },
       {
         id: 2192400,
+        portal: 'zonajobs',
         titulo: 'SRE',
         empresa: 'Confidencial',
         confidencial: true,
@@ -140,14 +157,15 @@ try {
       { id: null, titulo: 'Sin id' },
       { id: 2192500, titulo: '   ' },
       { id: 2192600, titulo: 'Sin empresa' },
+      { id: 1118490931, portal: 'bumeran', titulo: 'Cross-posted on Bumeran', empresa: 'ACME' },
     ],
   };
 
   const cards = parseResults(PAYLOAD, 'https://www.zonajobs.com.ar');
-  if (cards.length === 4) pass('parseResults() drops items with no id or an empty title');
-  else fail(`parseResults() returned ${cards.length} cards, expected 4`);
+  if (cards.length === 5) pass('parseResults() drops items with no id or an empty title');
+  else fail(`parseResults() returned ${cards.length} cards, expected 5`);
 
-  const [a, b, c, d] = cards;
+  const [a, b, c, d, e] = cards;
 
   if (a?.title === 'DevOps Engineer Senior' && a?.company === 'Netkel Consulting') {
     pass('parseResults() maps title and company');
@@ -179,6 +197,12 @@ try {
     pass('parseResults() emits "?" when the employer field is missing');
   } else {
     fail(`missing-company card = ${JSON.stringify(d)}`);
+  }
+
+  if (e?.url === 'https://www.bumeran.com.ar/empleos/1118490931.html') {
+    pass('parseResults() routes a cross-posted bumeran item to bumeran.com.ar');
+  } else {
+    fail(`cross-posted card url = ${JSON.stringify(e?.url)}`);
   }
 
   if (parseResults({}, 'https://www.zonajobs.com.ar').length === 0 && parseResults(null, 'x').length === 0) {
