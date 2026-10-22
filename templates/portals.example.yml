@@ -1629,6 +1629,35 @@ search_queries:
 #   max_pages: 3                          # optional page cap (20 jobs/page, default 3, max 10)
 #   enabled: true                         # 750ms pacing between pages
 #
+# - name: Computrabajo Argentina           # Argentina's volume domestic job board
+#   provider: computrabajo                 # detect() claims ar.computrabajo.com; provider: also works
+#   queries: ["devops", "sre", "release engineer"]  # REQUIRED: keyword-search board, no
+#                                         # browsable listing, so there is no default.
+#   locations: ["buenos-aires"]            # optional; omit to scan the whole country
+#   max_pages: 3                           # optional page cap (20 jobs/page, default 3, max 10)
+#   enabled: true                          # 750ms pacing between pages; locations carry
+#                                          # the edition's country ("<city>, Argentina")
+#
+# - name: EmpleosIT                        # Argentina's tech-only job board
+#   provider: empleosit                    # detect() claims empleosit.com.ar; provider: also works
+#   careers_url: https://www.empleosit.com.ar/   # optional when provider: is set
+#   max_pages: 10                          # optional page cap (100 jobs/page, default 10, max 20).
+#                                          # No queries: — the whole board is browsable, so one
+#                                          # sweep covers every open posting (~6 pages for ~550).
+#                                          # robots.txt asks Crawl-delay: 10 and the provider honours
+#                                          # it, so a full sweep is ~60s of deliberate pacing;
+#                                          # locations read "<city>, Argentina" / "Argentina · Remoto".
+#   enabled: true
+#
+# - name: Bumeran / ZonaJobs               # Navent's Argentine job board
+#   provider: zonajobs                     # detect() claims zonajobs.com.ar and bumeran.com.ar
+#   careers_url: https://www.zonajobs.com.ar/   # or https://www.bumeran.com.ar/ — SAME inventory
+#   area: tecnologia-sistemas-y-telecomunicaciones  # optional facet sweep (~433 postings, 9 requests)
+#                                          # and/or: queries: ["devops", "sre"] — one is required.
+#   max_pages: 10                          # optional page cap (50 jobs/page, default 5, max 20)
+#   enabled: true                          # 1s pacing; enable ONE host, not both: they serve the
+#                                          # same postings under different ids, so both = duplicates.
+#
 # - name: The Hub                         # Nordic/EU startup board
 #   provider: thehub
 #   max_pages: 3          # optional page cap (15 jobs/page, default 3, max 67; applies to each pass below)
