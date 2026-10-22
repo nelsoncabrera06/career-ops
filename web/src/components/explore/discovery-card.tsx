@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ExternalLink, Plus, Check, Loader2, ShieldQuestion, Sparkles, Coins } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ExternalLink, Plus, Check, Loader2, ShieldQuestion, Sparkles, Coins, Trash2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { instrumentSerif } from "@/lib/fonts";
 import { ATS_LABEL, type AtsSource, type DiscoveredOffer } from "@/lib/explore";
@@ -41,6 +42,10 @@ const WORKER_LABEL: Record<string, string> = { evaluate: "Evaluating…", pdf: "
 export function DiscoveryCard({ offer, inPipeline, evaluatedN }: { offer: DiscoveredOffer; inPipeline: boolean; evaluatedN?: string }) {
   const { added, adding, addToPipeline } = useExplore();
   const { jobs, startJob } = useJobs();
+  const router = useRouter();
+  const [action, setAction] = useState<"" | "dismiss" | "applied">("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
 
   // GLOBAL worker awareness: any worker acting on this URL drives the CTA, here
   // and on every other surface that renders this offer (the jobs store is global).
@@ -61,6 +66,56 @@ export function DiscoveryCard({ offer, inPipeline, evaluatedN }: { offer: Discov
     addToPipeline([offer]); // evaluating implies it's in the pipeline — record it
     startJob({ title: `Evaluate · ${offer.company}`, subtitle: offer.title, kind: "evaluate", input: offer.url, page: "/explore" });
   };
+
+  const dismiss = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      if (!isAdded) {
+        const addedCount = await addToPipeline([offer]);
+        if (!addedCount) throw new Error("Couldn't save this role for dismissal.");
+      }
+      const res = await fetch("/api/inbox/skip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: offer.url, done: true }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Couldn't dismiss this role.");
+      }
+      setAction("dismiss");
+      router.refresh();
+      window.dispatchEvent(new CustomEvent("co-job-done", { detail: { kind: "fresh-dismiss" } }));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't dismiss this role.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const markApplied = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch("/api/whats-new/applied", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ offer }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Couldn't record this application.");
+      setAction("applied");
+      router.refresh();
+      window.dispatchEvent(new CustomEvent("co-job-done", { detail: { kind: "manual-applied" } }));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't record this application.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (action) return null;
 
   return (
     <div className="co-rise group flex min-w-0 flex-col gap-2.5 rounded-xl border border-border bg-surface/40 p-3.5 text-left transition-all hover:-translate-y-0.5 hover:border-brand/30 hover:shadow-sm">
@@ -88,6 +143,30 @@ export function DiscoveryCard({ offer, inPipeline, evaluatedN }: { offer: Discov
       <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
         <span className="rounded border border-border px-1.5 py-0.5 font-medium text-muted">{ATS_LABEL[offer.ats as AtsSource] ?? offer.ats}</span>
         {fresh && <span className="text-faint">{fresh}</span>}
+        {!evaluatedN && !doneEval && !working && (
+          <span className="ml-auto inline-flex items-center gap-1">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={markApplied}
+              title="Record an application you submitted yourself"
+              className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-[11px] font-medium text-emerald-700 transition-colors hover:bg-emerald-500/10 disabled:opacity-50 dark:text-emerald-400"
+            >
+              {busy ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
+              Mark applied
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={dismiss}
+              title="Remove this role from Fresh matches"
+              aria-label="Not relevant"
+              className="inline-flex size-7 items-center justify-center rounded text-faint transition-colors hover:bg-surface-hover hover:text-foreground disabled:opacity-50"
+            >
+              {busy ? <Loader2 className="size-3 animate-spin" /> : <Trash2 className="size-3.5" />}
+            </button>
+          </span>
+        )}
         {unverified && (
           <span
             className="inline-flex items-center gap-1 rounded border border-amber-500/25 bg-amber-500/10 px-1.5 py-0.5 font-medium text-amber-600 dark:text-amber-300"
@@ -161,6 +240,7 @@ export function DiscoveryCard({ offer, inPipeline, evaluatedN }: { offer: Discov
             </button>
           </div>
         )}
+        {error && <p role="alert" className="mt-1 text-xs text-red-500">{error}</p>}
       </div>
     </div>
   );

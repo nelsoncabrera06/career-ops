@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { careerOpsRoot, readApplications } from "@/lib/career-ops";
+import { careerOpsRoot, readApplications, readInbox } from "@/lib/career-ops";
 import { getNormalizeTextKey } from "@/lib/core/text-key";
 import { evaluatedKeys, isEvaluated } from "@/lib/whats-new-suppression.mjs";
 import type { DiscoveredOffer } from "@/lib/explore";
@@ -39,10 +39,14 @@ export async function GET(req: Request) {
   // entire board after one evaluation (#3131). See lib/whats-new-suppression.
   const normalizeTextKey = await getNormalizeTextKey();
   const evaluated = evaluatedKeys(readApplications(), normalizeTextKey);
+  // Explicitly reviewed inbox rows should leave Fresh, whether saved for later
+  // or marked done/irrelevant. They remain available in Pipeline.
+  const reviewed = new Set(readInbox().map((job) => job.url));
 
   const toOffer = (c: string[]): DiscoveredOffer | null => {
     const [url, firstSeen, portal, title, company, status, location] = c;
     if (!url || !/^https?:\/\//i.test(url)) return null;
+    if (reviewed.has(url)) return null;
     if (status && /skipped|expired/i.test(status)) return null;
     if (isEvaluated(evaluated, normalizeTextKey, company, title)) return null;
     return {
