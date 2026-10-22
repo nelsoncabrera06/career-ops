@@ -673,7 +673,10 @@ export const JD_FETCHERS = {
  *   null = not a JD_TEXT_API_ATS host, or the fetch/parse was inconclusive —
  *   caller should fall through to a browser-backed read.
  */
-export async function fetchJdViaKnownApi(url, textCap = JD_TEXT_CAP, timeoutMs = WORKDAY_TIMEOUT_MS) {
+export async function fetchJdViaKnownApi(url, textCap = JD_TEXT_CAP, timeoutMs = WORKDAY_TIMEOUT_MS, context = {}) {
+  const naventResult = await fetchJdViaZonaJobsApi(url, textCap, timeoutMs, context);
+  if (naventResult) return { ...naventResult, ats: 'zonajobs' };
+
   const resolved = resolveAtsApi(url);
   if (!resolved || !JD_TEXT_API_ATS.has(resolved.ats)) return null;
   const fetcher = JD_FETCHERS[resolved.ats];
@@ -688,6 +691,78 @@ export async function fetchJdViaKnownApi(url, textCap = JD_TEXT_CAP, timeoutMs =
   const budgetMs = resolved.timeoutMs || timeoutMs;
   const result = await fetcher(resolved, url, textCap, budgetMs);
   return result ? { ...result, ats: resolved.ats } : null;
+}
+
+/**
+ * ZonaJobs/Bumeran's public search API includes the full `detalle` field, while
+ * their public posting pages are often an inaccessible client-rendered shell.
+ * Search by the inbox title (or the human-readable URL slug), then require an
+ * exact numeric posting-id match before returning any text. This keeps a broad
+ * search result from ever being mistaken for the requested job.
+ *
+ * @param {string} url
+ * @param {number} textCap
+ * @param {number} timeoutMs
+ * @param {{title?: string, company?: string}} context
+ * @returns {Promise<{url:string,title:string,text:string}|null>}
+ */
+export async function fetchJdViaZonaJobsApi(url, textCap = JD_TEXT_CAP, timeoutMs = WORKDAY_TIMEOUT_MS, context = {}) {
+  let parsed;
+  try { parsed = new URL(url); } catch { return null; }
+  const hostMap = {
+    'www.zonajobs.com.ar': { origin: 'https://www.zonajobs.com.ar', siteId: 'ZJAR' },
+    'zonajobs.com.ar': { origin: 'https://www.zonajobs.com.ar', siteId: 'ZJAR' },
+    'www.bumeran.com.ar': { origin: 'https://www.bumeran.com.ar', siteId: 'BMAR' },
+    'bumeran.com.ar': { origin: 'https://www.bumeran.com.ar', siteId: 'BMAR' },
+  };
+  if (parsed.protocol !== 'https:' || !hostMap[parsed.hostname]) return null;
+
+  const idMatch = parsed.pathname.match(/(?:^|[-/])(\d{6,12})\.html\/?$/i);
+  if (!idMatch) return null;
+  const wantedId = idMatch[1];
+  const slug = parsed.pathname.split('/').pop()?.replace(/\.html\/?$/i, '') ?? '';
+  const slugQuery = slug.replace(/-\d{6,12}$/, '').replace(/[-_]+/g, ' ').trim();
+  const query = String(context.title || slugQuery).trim();
+  if (!query) return null;
+
+  const site = hostMap[parsed.hostname];
+  const apiUrl = new URL('/api/avisos/searchV2', site.origin);
+  apiUrl.search = new URLSearchParams({ pageSize: '50', page: '0', sort: 'RECIENTES' }).toString();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs || WORKDAY_TIMEOUT_MS);
+  try {
+    const res = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'user-agent': DEFAULT_USER_AGENT,
+        'content-type': 'application/json',
+        accept: 'application/json',
+        'x-site-id': site.siteId,
+        origin: site.origin,
+        referer: `${site.origin}/`,
+      },
+      body: JSON.stringify({ filtros: [], query, internacional: false }),
+      redirect: 'error',
+      signal: controller.signal,
+    });
+    if (!res.ok) return null;
+    const payload = await res.json();
+    const job = Array.isArray(payload?.content)
+      ? payload.content.find((item) => String(item?.id ?? '') === wantedId)
+      : null;
+    if (!job || typeof job.detalle !== 'string') return null;
+
+    const expectedTitle = String(context.title || '').toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+    const actualTitle = String(job.titulo || '').toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+    if (expectedTitle && expectedTitle !== actualTitle) return null;
+    const text = jdHtmlToText(job.detalle).slice(0, Math.max(1, textCap));
+    if (text.length < Math.min(MIN_JD_TEXT_CHARS, textCap)) return null;
+    return { url, title: String(job.titulo || ''), text };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /**
