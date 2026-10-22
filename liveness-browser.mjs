@@ -701,8 +701,9 @@ export function createHeadedPageProvider(chromium) {
       if (page) return page;
       if (launchFailed) return null;
       try {
-        browser = await chromium.launch({ headless: false });
-        const context = await browser.newContext(LIVENESS_CONTEXT_OPTIONS);
+        const { getEdgeBrowser } = await import('./ensure-edge.mjs');
+        browser = await getEdgeBrowser();
+        const context = browser.contexts()[0] || await browser.newContext();
         page = await context.newPage();
         return page;
       } catch {
@@ -713,9 +714,10 @@ export function createHeadedPageProvider(chromium) {
       }
     },
     async close() {
-      if (browser) {
+      // No cerramos el browser — es el Edge del usuario corriendo con su perfil.
+      if (browser && typeof browser.disconnect === 'function') {
         try {
-          await browser.close();
+          await browser.disconnect();
         } catch {
           // best-effort teardown
         }

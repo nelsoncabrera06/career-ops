@@ -959,8 +959,10 @@ async function main() {
 
   let browser;
   try {
-    browser = await chromium.launch({ headless: true });
-    const context = await browser.newContext(LIVENESS_CONTEXT_OPTIONS);
+    // Importar el helper que lanza Edge automáticamente si no está corriendo
+    const { getEdgeBrowser } = await import('./ensure-edge.mjs');
+    browser = await getEdgeBrowser();
+    const context = browser.contexts()[0] || await browser.newContext();
     // Block every request (main navigation, redirect hop, or subresource) to a
     // private/loopback/link-local or non-http(s) host. Guarding only the initial
     // URL isn't enough once we return page CONTENT: a server-side redirect could
@@ -992,7 +994,8 @@ async function main() {
     console.error(JSON.stringify({ error: `navigation error: ${String(err.message).split('\n')[0]}`, code: 'navigation_error' }));
     process.exitCode = 1;
   } finally {
-    if (browser) await browser.close().catch(() => {});
+    // No cerramos Edge — solo desconectamos. Edge sigue abierto con tu perfil.
+    if (browser) await browser.disconnect().catch(() => {});
   }
 }
 
