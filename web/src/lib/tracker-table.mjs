@@ -30,6 +30,13 @@ const WEB_FIELD = {
   // The tracker's Apply Link / Follow-up columns (already in the shared alias
   // table) were mapped nowhere, so the web read path silently dropped them.
   applylink: "applyLink", followup: "followUp",
+  // The URL column is the tracker's posting key (AGENTS.md) and the alias table
+  // maps it to the canonical `url`, which had no web field — so every row filed
+  // with a URL cell reached the web with no posting link at all. The manual
+  // "Mark applied" route looks rows up by that link, so dropping it made the
+  // lookup miss every time. Kept separate from applyLink: a tracker may carry
+  // both columns and they are not the same thing.
+  url: "url",
 };
 
 /**

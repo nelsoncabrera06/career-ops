@@ -13,6 +13,13 @@ function cleanCell(value: unknown, max = 500): string {
   return typeof value === "string" ? value.replace(/[\t\r\n|]+/g, " ").trim().slice(0, max) : "";
 }
 
+/** The row's posting link: the URL column (the tracker's dedup key) or the
+ *  legacy Apply Link column. Rows filed with a URL cell carry no applyLink, so
+ *  reading only one of the two made every lookup miss. */
+function postingLink(app: { url?: string; applyLink?: string }): string {
+  return String(app.url || app.applyLink || "").trim();
+}
+
 function samePosting(a: string, b: string): boolean {
   const href = (value: string) => value.match(/\]\((https?:\/\/[^)]+)\)/)?.[1] || value;
   try {
@@ -45,7 +52,7 @@ export async function POST(req: Request) {
   if (!/^https?:\/\//i.test(url) || !company || !role) {
     return Response.json({ error: "a posting URL, company and role are required" }, { status: 400 });
   }
-  const existing = readApplications().find((app) => app.applyLink && samePosting(app.applyLink, url));
+  const existing = readApplications().find((app) => postingLink(app) && samePosting(postingLink(app), url));
 
   const root = careerOpsRoot();
   const reserveScript = rootScript("reserve-report-num");
@@ -88,7 +95,7 @@ export async function POST(req: Request) {
     fs.writeFileSync(addition, `${headers.join("\t")}\n${fields.join("\t")}\n`, { flag: "wx", encoding: "utf8" });
     await run(mergeScript, [], codeRoot, env);
 
-    const saved = readApplications().find((app) => app.applyLink && samePosting(app.applyLink, url));
+    const saved = readApplications().find((app) => postingLink(app) && samePosting(postingLink(app), url));
     if (!saved) throw new Error("the tracker merge completed without a matching application row");
     await run(reserveScript, ["--release", num], codeRoot, env);
     return Response.json({ ok: true, n: saved.n });

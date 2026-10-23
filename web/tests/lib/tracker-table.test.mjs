@@ -58,6 +58,7 @@ test('parses header columns when the data root does not contain system files', (
       report: '[001](../reports/001-example.md)',
       notes: 'fixture',
       applyLink: '',
+      url: '',
       followUp: '',
     },
   ]);
@@ -87,7 +88,7 @@ for (const [market, date, company, role] of markets) {
     assert.deepEqual(parseApplications(md, root), [{
       n: '41', date: '2026-01-02', company: 'Acme', via: 'Example Agency', role: 'Engineer', location: 'Berlin',
       score: '4.2/5', status: 'Applied', pdf: '✅', report: '[41](reports/041.md)', notes: 'keep this note',
-      applyLink: '', followUp: '',
+      applyLink: '', url: '', followUp: '',
     }]);
   });
 }
@@ -97,6 +98,32 @@ test('headerless tracker keeps data whose cells contain localized header words',
   assert.deepEqual(parseApplications(md, root), [{
     n: '41', date: '2026-01-02', company: 'Firma', via: '', role: 'Rolle', location: '', score: '4.2/5',
     status: 'Applied', pdf: '✅', report: '[41](reports/041.md)', notes: 'Status',
-    applyLink: '', followUp: '',
+    applyLink: '', url: '', followUp: '',
   }]);
+});
+
+test('the URL column reaches the web row as `url`, not only as applyLink', (t) => {
+  const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'career-ops-data-'));
+  const systemRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'career-ops-system-'));
+  t.after(() => {
+    fs.rmSync(dataRoot, { recursive: true, force: true });
+    fs.rmSync(systemRoot, { recursive: true, force: true });
+  });
+  fs.writeFileSync(
+    path.join(systemRoot, 'tracker-aliases.json'),
+    JSON.stringify({ ...ALIASES, url: 'url', 'apply link': 'applylink' }),
+  );
+
+  // The shape every row written by merge-tracker.mjs has: a URL column holding a
+  // markdown link, no Apply Link column. Dropping `url` here left the manual
+  // "Mark applied" route unable to find the row it had just written.
+  const md = `| # | Date | Company | Role | Score | Status | PDF | Report | URL | Notes |
+|---|------|---------|------|-------|--------|-----|--------|-----|-------|
+| 7 | 2026-10-22 | Acme | DevOps Engineer | 3.8/5 | Applied | \u274c | [007](../reports/007-acme.md) | [acme.com](https://acme.example/jobs/7) | applied by hand |`;
+
+  const [row] = parseApplications(md, dataRoot, systemRoot);
+  // The cell is handed over as written (a markdown link); the manual-applied
+  // route's samePosting() is what extracts the href before comparing.
+  assert.equal(row.url, '[acme.com](https://acme.example/jobs/7)');
+  assert.equal(row.applyLink, '');
 });

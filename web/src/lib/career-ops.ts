@@ -135,6 +135,8 @@ export type Application = {
   report: string;
   /** Tracker's `Apply Link` column — usually a markdown link to the original ad; "" when the column is absent. */
   applyLink: string;
+  /** Tracker's `URL` column — the posting key (a markdown link or a bare URL); "" when the column is absent. */
+  url: string;
   /** Tracker's `Follow-up` column — a date or "—"; "" when the column is absent. */
   followUp: string;
   notes: string;
