@@ -260,8 +260,11 @@ export function InboxTriage({ inbox }: { inbox: InboxJob[] }) {
   // have ≥1 raw posting.
   if (inbox.length === 0) return null;
 
+  // Full width of the Pipeline container (max-w-6xl), same as the tracker table in
+  // ALL — the triage list used to be capped at max-w-3xl and sat in the middle of
+  // the page, leaving the sides empty on wide screens.
   return (
-    <div className={cn("mx-auto mt-4 max-w-3xl", shortlist.length > 0 && "pb-28 sm:pb-24")}>
+    <div className={cn("mt-4", shortlist.length > 0 && "pb-28 sm:pb-24")}>
       <FacetChips
         within={within}
         setWithin={setWithin}

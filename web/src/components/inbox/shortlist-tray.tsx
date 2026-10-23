@@ -44,7 +44,9 @@ export function ShortlistTray({
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-30 sm:bottom-4">
-      <div className="mx-auto max-w-3xl sm:px-6">
+      {/* Aligned to the Pipeline page column (max-w-6xl + sm:px-6) so the tray's
+          edges line up with the triage list above it. */}
+      <div className="mx-auto max-w-6xl sm:px-6">
         <div className="border-t border-border bg-surface shadow-lg shadow-black/10 sm:rounded-2xl sm:border">
           {/* expandable saved-items list */}
           {open && (
