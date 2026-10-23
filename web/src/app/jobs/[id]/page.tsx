@@ -4,14 +4,16 @@ import { use } from "react";
 import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { ArrowLeft, Loader2, Wrench, CircleDot, Check, X } from "lucide-react";
+import { ArrowLeft, Loader2, Wrench, CircleDot, Check, X, RotateCcw } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useJobs } from "@/components/jobs/job-store";
 import { HeroGlow } from "@/components/hero-glow";
 import { Badge } from "@/components/ui/badge";
 
 export default function JobPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const { jobs } = useJobs();
+  const { jobs, startJob } = useJobs();
+  const router = useRouter();
   const job = jobs.find((j) => j.id === id);
 
   if (!job) {
@@ -26,6 +28,18 @@ export default function JobPage({ params }: { params: Promise<{ id: string }> })
       </div>
     );
   }
+
+  const reevaluate = () => {
+    if (!job.input || job.status !== "error") return;
+    const nextId = startJob({
+      title: job.title,
+      subtitle: job.subtitle,
+      kind: "evaluate",
+      input: job.input,
+      page: job.page || `/jobs/${job.id}`,
+    });
+    if (nextId) router.push(`/jobs/${nextId}`);
+  };
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-8">
@@ -75,6 +89,16 @@ export default function JobPage({ params }: { params: Promise<{ id: string }> })
           </li>
         )}
       </ol>
+
+      {job.status === "error" && job.kind === "evaluate" && job.input && (
+        <button
+          type="button"
+          onClick={reevaluate}
+          className="mt-6 inline-flex items-center gap-2 rounded-md bg-brand px-4 py-2 text-sm font-medium text-brand-foreground transition hover:bg-brand-200 max-sm:min-h-[44px]"
+        >
+          <RotateCcw className="size-4" /> Re-evaluate
+        </button>
+      )}
 
       {job.text && (
         <div className="mt-8">
