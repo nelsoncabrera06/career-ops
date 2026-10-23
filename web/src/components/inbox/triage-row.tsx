@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Bookmark, BookmarkCheck, Loader2, X } from "lucide-react";
+import { Bookmark, BookmarkCheck, Check, Loader2, X } from "lucide-react";
 import type { InboxJob } from "@/lib/career-ops";
 import type { AtsSource } from "@/lib/explore";
 import { ATS_LABEL } from "@/lib/explore";
@@ -33,6 +33,8 @@ export function TriageRow({
   onToggleSelect,
   onSave,
   onSkip,
+  onApplied,
+  applying = false,
 }: {
   job: InboxJob;
   source: AtsSource | null;
@@ -43,6 +45,8 @@ export function TriageRow({
   onToggleSelect: () => void;
   onSave: () => void;
   onSkip: () => void;
+  onApplied: () => void;
+  applying?: boolean;
 }) {
   const ago = agoLabel(age);
   const evaluated = !!scored && (scored.running || scored.score != null);
@@ -112,6 +116,16 @@ export function TriageRow({
           >
             {shortlisted ? <BookmarkCheck className="size-4" /> : <Bookmark className="size-4" />}
             <span className="max-sm:hidden">{shortlisted ? "Saved" : "Save"}</span>
+          </button>
+          <button
+            type="button"
+            onClick={onApplied}
+            disabled={applying}
+            title="Mark applied"
+            aria-label={`Mark ${job.company} ${job.role} as applied`}
+            className="inline-flex items-center justify-center rounded-md p-1 text-faint transition-colors hover:bg-surface-hover hover:text-emerald-600 disabled:opacity-50 dark:hover:text-emerald-400 max-sm:min-h-[44px] max-sm:min-w-[44px]"
+          >
+            {applying ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
           </button>
           <button
             type="button"

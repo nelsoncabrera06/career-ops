@@ -40,7 +40,8 @@ export function InboxTriage({ inbox }: { inbox: InboxJob[] }) {
   const [shortlist, setShortlist] = useState<ShortItem[]>([]);
   const [hidden, setHidden] = useState<string[]>([]);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
-  const [undo, setUndo] = useState<{ label: string; fn: () => void } | null>(null);
+  const [applying, setApplying] = useState<Set<string>>(() => new Set());
+  const [undo, setUndo] = useState<{ label: string; fn?: () => void } | null>(null);
   const [hasCli, setHasCli] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
@@ -188,6 +189,36 @@ export function InboxTriage({ inbox }: { inbox: InboxJob[] }) {
     });
     void persistSkip(job.url, true);
   };
+  // Applied: writes a real tracker row (status Applied, no score) instead of
+  // spending tokens on an evaluation — the posting was sent by hand. The inbox
+  // row leaves with it, since a submitted application is no longer triage work.
+  // No Undo: the tracker row is the record, and reverting it is a status change,
+  // not a hidden-flag toggle.
+  const markApplied = async (job: InboxJob) => {
+    setApplying((s) => new Set(s).add(job.url));
+    try {
+      const res = await fetch("/api/whats-new/applied", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ offer: { url: job.url, company: job.company, title: job.role } }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string; n?: string };
+      if (!res.ok) throw new Error(data.error || "Couldn't record this application.");
+      setHidden((h) => (h.includes(job.url) ? h : [...h, job.url]));
+      void persistSkip(job.url, true);
+      setUndo({ label: `Applied · ${job.company}${data.n ? ` (#${data.n})` : ""}` });
+      window.dispatchEvent(new CustomEvent("co-job-done", { detail: { kind: "manual-applied" } }));
+      router.refresh();
+    } catch (e) {
+      setUndo({ label: e instanceof Error ? e.message : "Couldn't record this application." });
+    } finally {
+      setApplying((s) => {
+        const n = new Set(s);
+        n.delete(job.url);
+        return n;
+      });
+    }
+  };
   const restoreHidden = () => {
     const urls = hidden;
     setHidden([]);
@@ -289,6 +320,8 @@ export function InboxTriage({ inbox }: { inbox: InboxJob[] }) {
               onToggleSelect={() => toggleSelect(e.job.url)}
               onSave={() => save(e.job)}
               onSkip={() => skip(e.job)}
+              onApplied={() => void markApplied(e.job)}
+              applying={applying.has(e.job.url)}
             />
           ))}
         </ul>
@@ -320,9 +353,11 @@ export function InboxTriage({ inbox }: { inbox: InboxJob[] }) {
         <div className={cn("fixed inset-x-0 z-40 flex justify-center px-4", shortlist.length > 0 ? "bottom-24 sm:bottom-24" : "bottom-6")}>
           <div className="inline-flex items-center gap-3 rounded-full border border-border bg-surface px-4 py-2 text-sm shadow-lg">
             <span className="text-muted">{undo.label}</span>
-            <button type="button" onClick={() => { undo.fn(); setUndo(null); }} className="inline-flex items-center gap-1 font-medium text-brand max-sm:min-h-[44px]">
-              <Undo2 className="size-3.5" /> Undo
-            </button>
+            {undo.fn && (
+              <button type="button" onClick={() => { undo.fn?.(); setUndo(null); }} className="inline-flex items-center gap-1 font-medium text-brand max-sm:min-h-[44px]">
+                <Undo2 className="size-3.5" /> Undo
+              </button>
+            )}
           </div>
         </div>
       )}
