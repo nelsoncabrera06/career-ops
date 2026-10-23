@@ -9,7 +9,7 @@ export const metadata = { title: "Guide — career-ops" };
 
 const LOOP = [
   { step: "Portals", note: "qué mirar" },
-  { step: "Explore / Fresh", note: "lo nuevo" },
+  { step: "Today: Explore / Fresh", note: "lo nuevo" },
   { step: "Pipeline → Inbox", note: "triar, gratis" },
   { step: "Evaluar", note: "gasta tokens" },
   { step: "Aplicar", note: "a mano" },
@@ -26,8 +26,8 @@ const PAGES = [
   {
     href: "/explore",
     name: "Explore",
-    what: "Avisos nuevos que encontró el scan, todavía sin triar.",
-    when: "1–2 veces por semana.",
+    what: "La lista completa de avisos nuevos sin triar. Es la sección “Fresh matches this week” de Today, abierta entera.",
+    when: "1–2 veces por semana, cuando Today tiene novedades.",
   },
   {
     href: "/pipeline",
@@ -38,7 +38,7 @@ const PAGES = [
   {
     href: "/",
     name: "Today",
-    what: "Lo que necesita una decisión hoy: evaluados sin decidir y follow-ups urgentes.",
+    what: "Lo que necesita una decisión hoy: avisos nuevos (Explore / Fresh), evaluados sin decidir y follow-ups urgentes.",
     when: "Todos los días, 5 minutos.",
   },
   {
