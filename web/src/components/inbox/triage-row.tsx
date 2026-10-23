@@ -20,6 +20,30 @@ function agoLabel(age: number | null): string | null {
   return `${Math.floor(age / 30)}mo ago`;
 }
 
+/**
+ * Instant hover label for the row actions.
+ *
+ * The native `title` attribute is a ~1s OS-level tooltip that several browsers
+ * suppress inside a dense list, and it is the only feedback these icon-only
+ * buttons have — the action is invisible until you already know it. This is a
+ * CSS-only label instead: no state, no portal, and it sits INSIDE the row
+ * (left of the button, vertically centred) because the list's rounded
+ * `overflow-hidden` would clip anything drawn above or below it.
+ */
+function Tip({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <span className="group/tip relative inline-flex">
+      {children}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute right-full top-1/2 z-20 mr-2 -translate-y-1/2 whitespace-nowrap rounded-md border border-border bg-surface px-2 py-1 text-[11px] font-medium text-foreground opacity-0 shadow-md transition-opacity group-hover/tip:opacity-100 max-sm:hidden"
+      >
+        {label}
+      </span>
+    </span>
+  );
+}
+
 // One raw posting in the triage list. Shows ONLY cheap, free signals + an honest
 // "not scored" (CRUDA) — never a fake match%. Once its shortlist eval finishes it
 // flips to EVALUADA (a real A–F badge). Save→shortlist / Skip→hidden are free + undoable.
@@ -104,37 +128,42 @@ export function TriageRow({
         </Link>
       ) : (
         <div className="flex shrink-0 items-center gap-1">
-          <button
-            type="button"
-            onClick={onSave}
-            title={shortlisted ? "In your shortlist" : "Save to shortlist"}
-            aria-pressed={shortlisted}
-            className={cn(
-              "inline-flex items-center justify-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors max-sm:min-h-[44px] max-sm:min-w-[44px]",
-              shortlisted ? "text-brand" : "text-muted hover:bg-surface-hover hover:text-brand",
-            )}
-          >
-            {shortlisted ? <BookmarkCheck className="size-4" /> : <Bookmark className="size-4" />}
-            <span className="max-sm:hidden">{shortlisted ? "Saved" : "Save"}</span>
-          </button>
-          <button
-            type="button"
-            onClick={onApplied}
-            disabled={applying}
-            title="Mark applied"
-            aria-label={`Mark ${job.company} ${job.role} as applied`}
-            className="inline-flex items-center justify-center rounded-md p-1 text-faint transition-colors hover:bg-surface-hover hover:text-emerald-600 disabled:opacity-50 dark:hover:text-emerald-400 max-sm:min-h-[44px] max-sm:min-w-[44px]"
-          >
-            {applying ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
-          </button>
-          <button
-            type="button"
-            onClick={onSkip}
-            title="Skip — hide from the inbox"
-            className="inline-flex items-center justify-center rounded-md p-1 text-faint transition-colors hover:bg-surface-hover hover:text-foreground max-sm:min-h-[44px] max-sm:min-w-[44px]"
-          >
-            <X className="size-4" />
-          </button>
+          <Tip label={shortlisted ? "In your shortlist" : "Save to shortlist"}>
+            <button
+              type="button"
+              onClick={onSave}
+              aria-pressed={shortlisted}
+              aria-label={shortlisted ? "In your shortlist" : "Save to shortlist"}
+              className={cn(
+                "inline-flex items-center justify-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors max-sm:min-h-[44px] max-sm:min-w-[44px]",
+                shortlisted ? "text-brand" : "text-muted hover:bg-surface-hover hover:text-brand",
+              )}
+            >
+              {shortlisted ? <BookmarkCheck className="size-4" /> : <Bookmark className="size-4" />}
+              <span className="max-sm:hidden">{shortlisted ? "Saved" : "Save"}</span>
+            </button>
+          </Tip>
+          <Tip label="Mark applied">
+            <button
+              type="button"
+              onClick={onApplied}
+              disabled={applying}
+              aria-label={`Mark ${job.company} ${job.role} as applied`}
+              className="inline-flex items-center justify-center rounded-md p-1 text-faint transition-colors hover:bg-surface-hover hover:text-emerald-600 disabled:opacity-50 dark:hover:text-emerald-400 max-sm:min-h-[44px] max-sm:min-w-[44px]"
+            >
+              {applying ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+            </button>
+          </Tip>
+          <Tip label="Skip — hide from the inbox">
+            <button
+              type="button"
+              onClick={onSkip}
+              aria-label={`Skip ${job.company} ${job.role}`}
+              className="inline-flex items-center justify-center rounded-md p-1 text-faint transition-colors hover:bg-surface-hover hover:text-foreground max-sm:min-h-[44px] max-sm:min-w-[44px]"
+            >
+              <X className="size-4" />
+            </button>
+          </Tip>
         </div>
       )}
     </li>
