@@ -64,7 +64,13 @@ export const STATUS_ALIAS = {
   "ıptal_edildi": "DISCARDED",
   duplicado: "DISCARDED", // web-only: not in states.yml
   repost: "DISCARDED", // web-only: not in states.yml
-  // SKIP — states.yml `skip`
+  // Assessment — states.yml `assessment` (#2917): online assessment or
+  // asynchronous screening stage.
+  screening: "ASSESSMENT",
+  "online assessment": "ASSESSMENT",
+  online_assessment: "ASSESSMENT",
+  "online screening": "ASSESSMENT",
+  // Skip — states.yml `skip`
   no_aplicar: "SKIP",
   "no aplicar": "SKIP",
   skip: "SKIP",

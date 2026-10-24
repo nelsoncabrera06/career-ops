@@ -270,13 +270,15 @@ const DE = { output: "de", modesDir: "modes/de", evalModeFile: "modes/de/angebot
 
 test("buildPrompt: evaluate reads the MARKET's evaluation mode, not always oferta.md", () => {
   const prompt = buildPrompt({ kind: "evaluate", ...ARGS, lang: DE });
-  assert.match(prompt, /Read modes\/de\/angebot\.md and follow it EXACTLY/);
-  assert.doesNotMatch(prompt, /Read modes\/oferta\.md/);
+  assert.match(prompt, /read modes\/de\/angebot\.md/);
+  assert.match(prompt, /Follow modes\/de\/angebot\.md for the report's sections/);
+  assert.doesNotMatch(prompt, /modes\/oferta\.md/);
 });
 
 test("buildPrompt: evaluate still reads oferta.md when no market is configured", () => {
   const prompt = buildPrompt({ kind: "evaluate", ...ARGS });
-  assert.match(prompt, /Read modes\/oferta\.md and follow it EXACTLY/);
+  assert.match(prompt, /read modes\/oferta\.md/);
+  assert.match(prompt, /Follow modes\/oferta\.md for the report's sections/);
 });
 
 test("buildPrompt: the output language is stated explicitly in the prompt", () => {
@@ -355,7 +357,10 @@ test("buildPrompt: evaluate does not enumerate the report's sections", () => {
   // survived. This pins that the subset does not come back.
   const prompt = buildPrompt({ kind: "evaluate", input: "https://example.com/jobs/9", memory: "", today: "2026-09-04" });
   assert.ok(!/blocks?\s+A[–-]F/i.test(prompt), "the prompt must not name a subset of the mode file's sections");
-  assert.ok(/EVERY section its report template specifies/i.test(prompt), "it must defer to the mode file for the section set");
+  assert.ok(
+    /Follow modes\/oferta\.md for the report's sections, order, scoring and other criteria/.test(prompt),
+    "it must defer to the mode file for the section set",
+  );
 });
 
 test("buildPrompt: the pdf prompt fills the template the caller resolved", () => {
