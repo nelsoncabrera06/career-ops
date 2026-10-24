@@ -1209,6 +1209,7 @@ search_queries:
 #   jazzhr          <tenant>.applytojob.com or <tenant>.applytojob.com/apply
 #   pythonorg       python.org/jobs
 #   generalist-world generalist.world/jobs/  (curated generalist / operator roles board; SSR HTML, one fetch; or provider: generalist-world)
+#   fullstack       talent.fullstack.com  (FullStack Labs' own talent portal; page-capped sweep, ~20 req/min API limit)
 #   applitrack      www.applitrack.com/<district>/onlineapp/  (Frontline AppliTrack K-12 board; optional default_location: "City, ST" is appended to site names that name no place)
 #   schoolspring    <district>.schoolspring.com  (K-12 board; public JSON API)
 #   neogov          www.schooljobs.com/careers/<agency>[/<folder>] or www.governmentjobs.com/careers/<agency>[/<folder>]
@@ -1680,6 +1681,16 @@ search_queries:
 # - name: Flowxtra                        # board-wide, every company hosted on Flowxtra
 #   provider: flowxtra
 #   max_pages: 3          # optional page cap (100 jobs/page, default 3, max 50)
+#   enabled: true
+#
+# - name: Example FullStack Talent Co     # FullStack Labs' own talent portal (talent.fullstack.com)
+#   provider: fullstack                   # detect() claims talent.fullstack.com; provider: also works
+#   careers_url: https://talent.fullstack.com/   # optional when provider: is set
+#   max_pages: 20         # optional page cap (30 postings/page, default 20, max 120).
+#                         # Rows are NOT date-ordered, so this buys coverage depth, not
+#                         # recency: the whole board was 97 pages / ~2.9k postings. The API
+#                         # rate-limits ~20 req/min, so the provider paces 3.4s/page — a full
+#                         # sweep is ~5-6 min, and a cut-short sweep is warned about.
 #   enabled: true
 #
 # - name: Gupy                            # board-wide, every Brazilian employer hosted on Gupy

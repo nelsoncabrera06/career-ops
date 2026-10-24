@@ -186,6 +186,18 @@ try {
     (jobs) => jobs.length === 1 && jobs[0].url.includes('g-1'),
   );
 
+  // fullstack.normalizeFullstackJob — the posting id feeds /jobs/{id} on the
+  // talent portal, and it is the dedup key.
+  const { normalizeFullstackJob } = await load('fullstack.mjs');
+  check(
+    'fullstack.normalizeFullstackJob',
+    () => [
+      normalizeFullstackJob({ id: `${LONE}bad`, jobTitle: 'Bad', statusName: 'Published' }),
+      normalizeFullstackJob({ id: 'f-1', jobTitle: 'Good', statusName: 'Published' }),
+    ],
+    ([bad, good]) => bad === null && good !== null && good.url === 'https://talent.fullstack.com/jobs/f-1',
+  );
+
   // garena.parseGarenaResponse — for…of over json.jobs; id feeds the /careers/ URL.
   const { parseGarenaResponse } = await load('garena.mjs');
   check(
@@ -236,7 +248,7 @@ try {
   // import _safe-url.mjs and call safeEncodeURIComponent; dropping either is the
   // regression this list catches.
   const CONVERTED = [
-    'alibaba.mjs', 'arbeitsagentur.mjs', 'bamboohr.mjs', 'feishu-jobs.mjs', 'garena.mjs', 'jibeapply.mjs',
+    'alibaba.mjs', 'arbeitsagentur.mjs', 'bamboohr.mjs', 'feishu-jobs.mjs', 'fullstack.mjs', 'garena.mjs', 'jibeapply.mjs',
     'kalibrr.mjs', 'manfred.mjs', 'meituan.mjs', 'mokahr.mjs', 'phenom.mjs', 'platsbanken.mjs',
     'techinasia.mjs', 'thehub.mjs', 'tkms.mjs', 'vdab.mjs',
   ];
