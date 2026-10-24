@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BookOpen } from "lucide-react";
+import { BookOpen, ExternalLink } from "lucide-react";
 
 export const metadata = { title: "Guide — career-ops" };
 
@@ -73,6 +73,20 @@ export default function GuidePage() {
         Cómo se usa career-ops, de punta a punta. El sistema es un embudo: lo caro (evaluar) va al final, y
         solo sobre lo que ya elegiste vos.
       </p>
+
+      {/* Reference to the upstream manual. Static, external, and above the loop:
+          this page documents THIS install, the docs site documents the product
+          (scripts, modes, CLI) — different readers, so they are separate links. */}
+      <a
+        href="https://career-ops.org/es/docs"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-border bg-surface/40 px-3 py-1.5 text-xs font-medium text-muted transition-colors hover:border-brand/40 hover:text-brand"
+      >
+        <BookOpen className="size-3.5" />
+        Documentación oficial de career-ops
+        <ExternalLink className="size-3" />
+      </a>
 
       {/* the loop */}
       <section className="mt-8">
