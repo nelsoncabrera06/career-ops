@@ -1,20 +1,47 @@
 "use client";
 
-import { use } from "react";
+import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { ArrowLeft, Loader2, Wrench, CircleDot, Check, X, RotateCcw } from "lucide-react";
+import { ArrowLeft, Loader2, Wrench, CircleDot, Check, X, RotateCcw, ExternalLink } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useJobs } from "@/components/jobs/job-store";
 import { HeroGlow } from "@/components/hero-glow";
 import { Badge } from "@/components/ui/badge";
+import { findPipelineEntry } from "@/lib/job-pipeline-link.mjs";
 
 export default function JobPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { jobs, startJob } = useJobs();
   const router = useRouter();
   const job = jobs.find((j) => j.id === id);
+
+  // A finished evaluate lands a row in the tracker; resolve it by the posting
+  // URL key so this page can point at its pipeline entry. Only fetched after a
+  // real completion — a running/errored job has written nothing to match. The
+  // fetch reads fresh files (/api/pipeline is force-dynamic), so the row the
+  // worker just merged is there by the time the stream closed.
+  const [entry, setEntry] = useState<{ n: string; company: string } | null>(null);
+  const doneEvaluateInput = job?.status === "done" && job.kind === "evaluate" ? (job.input ?? "") : "";
+  useEffect(() => {
+    if (!doneEvaluateInput) {
+      setEntry(null);
+      return;
+    }
+    let alive = true;
+    fetch("/api/pipeline")
+      .then((r) => r.json())
+      .then((d) => {
+        if (!alive) return;
+        const hit = findPipelineEntry(d.applications ?? [], doneEvaluateInput);
+        setEntry(hit ? { n: hit.n, company: hit.company } : null);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [doneEvaluateInput]);
 
   if (!job) {
     return (
@@ -66,6 +93,19 @@ export default function JobPage({ params }: { params: Promise<{ id: string }> })
               <Badge tone={job.result.tone}>{job.result.score}/5</Badge>
               {job.result.summary && <span className="text-sm text-muted">{job.result.summary}</span>}
             </div>
+          )}
+          {/* Only shown when the posting URL resolves to a tracker row: an
+              honest link, not a guess — no match renders nothing here. */}
+          {entry && (
+            <Link
+              href={`/pipeline/${entry.n}`}
+              title={`${entry.company} in your tracker`}
+              className="mt-4 inline-flex items-center gap-2 rounded-lg border border-brand/30 bg-brand-soft px-3 py-2 text-sm font-medium text-brand transition-colors hover:bg-brand/15"
+            >
+              <ExternalLink className="size-4" />
+              View in pipeline <span className="tabular-nums">#{entry.n}</span>
+              <span className="text-brand/70">· {entry.company}</span>
+            </Link>
           )}
         </div>
       </section>

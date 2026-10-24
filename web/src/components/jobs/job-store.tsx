@@ -59,7 +59,15 @@ function parseVerdict(text: string): JobResult {
 export function JobsProvider({ children }: { children: React.ReactNode }) {
   const [jobs, setJobs] = useState<Job[]>([]);
   const seq = useRef(0);
-  const loaded = useRef(false);
+  // A REF here wiped the whole history on reload: the persist effect runs in the
+  // same commit as the restore (which flips a ref FIRST), so it wrote the
+  // initial [] over the stored history — and React StrictMode's dev-only effect
+  // re-run then restored from the storage the first run had just emptied,
+  // making the loss permanent every page load. A STATE flag is the fix: it is
+  // false during the mount commit (persist skips those renders entirely) and
+  // true only in the re-render that also carries the restored jobs, so the
+  // first thing ever written is the restored history.
+  const [loaded, setLoaded] = useState(false);
 
   // restore history
   useEffect(() => {
@@ -73,18 +81,18 @@ export function JobsProvider({ children }: { children: React.ReactNode }) {
     } catch {
       /* ignore */
     }
-    loaded.current = true;
+    setLoaded(true);
   }, []);
 
   // persist
   useEffect(() => {
-    if (!loaded.current) return;
+    if (!loaded) return;
     try {
       localStorage.setItem(JOBS_KEY, JSON.stringify(jobs.slice(0, 40)));
     } catch {
       /* quota */
     }
-  }, [jobs]);
+  }, [loaded, jobs]);
 
   const patch = useCallback((id: string, fn: (j: Job) => Job) => {
     setJobs((js) => js.map((j) => (j.id === id ? fn(j) : j)));
