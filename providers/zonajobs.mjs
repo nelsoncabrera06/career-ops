@@ -207,6 +207,35 @@ export function postingUrl(portal, id, fallbackOrigin) {
 }
 
 /**
+ * Repoint a stale Navent posting URL at the host that serves it.
+ *
+ * The repair direction of postingUrl(): history written before the portal fix
+ * carries `zonajobs.com.ar/empleos/{10-digit}.html` for Bumeran-native postings
+ * — spellings the board itself answers with /404 (measured 2026-10-24:
+ * `zonajobs.com.ar/empleos/1118490158.html` redirects to /404 while the same id
+ * resolves on Bumeran). The reverse spelling (Bumeran host, 7-digit id) is NOT
+ * touched: the merged inventory resolves those on Bumeran's own records, and
+ * only known-broken spellings are repaired — anything that works stays as
+ * written, so a wrong guess can never move a live URL.
+ *
+ * Only the scheme + host prefix moves; path, query and fragments are carried
+ * through byte-for-byte. A URL that is not a ZonaJobs /empleos/ link, or whose
+ * id is not 10 digits, returns the input unchanged (so callers can apply it
+ * blindly to whole lines).
+ *
+ * @param {string} url
+ * @returns {string}
+ */
+export function repointNaventUrl(url) {
+  const raw = String(url ?? '');
+  if (!raw) return raw;
+  return raw.replace(
+    /^https?:\/\/(?:www\.)?zonajobs\.com\.ar(\/empleos\/\d{10}\.html)(?![\w.])/i,
+    (m, path) => `https://www.bumeran.com.ar${path}`,
+  );
+}
+
+/**
  * Map one API payload's `content[]` to posting records.
  *
  * @param {{content?: Array<object>}} payload
