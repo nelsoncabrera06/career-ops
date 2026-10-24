@@ -1034,9 +1034,9 @@ async function main() {
 
   let browser;
   try {
-    // Importar el helper que lanza Edge automáticamente si no está corriendo
-    const { getEdgeBrowser } = await import('./ensure-edge.mjs');
-    browser = await getEdgeBrowser();
+    // Importar el helper que lanza Chrome automáticamente si no está corriendo
+    const { getChromeBrowser } = await import('./ensure-chrome.mjs');
+    browser = await getChromeBrowser();
     const context = browser.contexts()[0] || await browser.newContext();
     // Block every request (main navigation, redirect hop, or subresource) to a
     // private/loopback/link-local or non-http(s) host. Guarding only the initial
@@ -1069,7 +1069,7 @@ async function main() {
     console.error(JSON.stringify({ error: `navigation error: ${String(err.message).split('\n')[0]}`, code: 'navigation_error' }));
     process.exitCode = 1;
   } finally {
-    // No cerramos Edge — solo desconectamos. Edge sigue abierto con tu perfil.
+    // No cerramos Chrome — solo desconectamos. Sigue abierto con el perfil de career-ops.
     if (browser) await browser.disconnect().catch(() => {});
   }
 }

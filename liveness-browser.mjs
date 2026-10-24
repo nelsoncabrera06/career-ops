@@ -701,8 +701,8 @@ export function createHeadedPageProvider(chromium) {
       if (page) return page;
       if (launchFailed) return null;
       try {
-        const { getEdgeBrowser } = await import('./ensure-edge.mjs');
-        browser = await getEdgeBrowser();
+        const { getChromeBrowser } = await import('./ensure-chrome.mjs');
+        browser = await getChromeBrowser();
         const context = browser.contexts()[0] || await browser.newContext();
         page = await context.newPage();
         return page;
@@ -714,7 +714,7 @@ export function createHeadedPageProvider(chromium) {
       }
     },
     async close() {
-      // No cerramos el browser — es el Edge del usuario corriendo con su perfil.
+      // No cerramos el browser — es el Chrome de career-ops corriendo con su perfil.
       if (browser && typeof browser.disconnect === 'function') {
         try {
           await browser.disconnect();
