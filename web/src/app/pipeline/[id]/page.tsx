@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
-import { readReport, findApplication, pdfReadyForReport, trackerCanDelete, readCompanyGroups } from "@/lib/career-ops";
+import { readReport, findApplication, pdfReadyForReport, trackerCanDelete, readCompanyGroups, careerOpsRoot } from "@/lib/career-ops";
+import { noteFor } from "@/lib/job-notes.mjs";
 import { resolveTailoredCover } from "@/lib/apply/cover";
 import { ReportView } from "@/components/report-view";
 
@@ -26,6 +27,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
       pdfReadyFromIndex={await pdfReadyForReport(id)}
       coverReady={coverReady}
       companyGroups={readCompanyGroups()}
+      note={noteFor(careerOpsRoot(), id)}
     />
   );
 }

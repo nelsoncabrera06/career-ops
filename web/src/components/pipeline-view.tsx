@@ -39,11 +39,15 @@ export function PipelineView({
   applications,
   inbox,
   companyGroups = [],
+  notedIds = [],
 }: {
   applications: Application[];
   inbox: InboxJob[];
   companyGroups?: CompanyGroup[];
+  /** Tracker numbers carrying a personal note in data/job-notes.json. */
+  notedIds?: string[];
 }) {
+  const noted = useMemo(() => new Set(notedIds.map(String)), [notedIds]);
   const params = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -268,6 +272,7 @@ export function PipelineView({
                     </td>
                   <td className="px-4 py-3 text-muted">
                     <Link href={`/pipeline/${r.n}`}>{r.role}</Link>
+                    {noted.has(String(r.n)) && <HasNote />}
                   </td>
                   <td className="px-4 py-3">
                     <Badge tone={scoreTone(r.score)}>{r.score || "—"}</Badge>
@@ -292,6 +297,31 @@ export function PipelineView({
         </div>
       )}
     </div>
+  );
+}
+
+// "This row has a personal note" — the 📝 after the role, in ANY tab, with the
+// words on hover. CSS-only (no state, no portal): the table's `overflow-x-auto`
+// wrapper clips anything drawn above or below a row, so the label sits inline to
+// the icon's right. Native `title` is not used on purpose — it is a ~1s OS
+// tooltip that several browsers suppress inside a dense list.
+function HasNote() {
+  return (
+    <span className="group/note relative ml-1.5 inline-flex align-middle">
+      <span
+        role="img"
+        aria-label="has personal note"
+        className="cursor-help select-none text-xs leading-none transition-transform group-hover/note:scale-110"
+      >
+        📝
+      </span>
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute left-full top-1/2 z-20 ml-1.5 -translate-y-1/2 whitespace-nowrap rounded-md border border-border bg-surface px-2 py-1 text-[11px] font-medium normal-case tracking-normal text-foreground opacity-0 shadow-md transition-opacity group-hover/note:opacity-100 max-sm:hidden"
+      >
+        has note
+      </span>
+    </span>
   );
 }
 

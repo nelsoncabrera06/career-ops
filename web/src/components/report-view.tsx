@@ -22,6 +22,7 @@ import { ApplyButton } from "@/components/apply-button";
 import { MarkAppliedButton } from "@/components/mark-applied-button";
 import { DeleteFromTracker } from "@/components/delete-from-tracker";
 import { ReportMarkdown } from "@/components/report-markdown";
+import { JobNotes } from "@/components/job-notes";
 import { companyPresentation } from "@/lib/company-presentation.mjs";
 import { aliasesOf } from "@/lib/company-aliases.mjs";
 
@@ -64,6 +65,7 @@ export function ReportView({
   pdfReadyFromIndex = false,
   coverReady = false,
   companyGroups = [],
+  note = null,
 }: {
   id: string;
   app: Application | null;
@@ -81,6 +83,9 @@ export function ReportView({
    *  posts under, shown under the title so the invite email's brand is
    *  recognisable (see company-aliases.mjs). */
   companyGroups?: import("@/lib/company-aliases.mjs").CompanyGroup[];
+  /** The user's own note for this job, from data/job-notes.json (see
+   *  lib/job-notes.mjs). Independent of the tracker's evaluation Notes cell. */
+  note?: { text: string; updated: string } | null;
 }) {
   const meta = report ? parseReport(report) : null;
   const field = (label: string) => meta?.fields.find((f) => f.label === label)?.value;
@@ -160,6 +165,12 @@ export function ReportView({
           </div>
         )}
       </header>
+
+      {/* The user's own notes — a plain textarea that saves to
+          data/job-notes.json. Rendered above the report because it is the one
+          thing on this page written by hand: the recruiter's email, what the
+          call covered, what was promised and by when. */}
+      <JobNotes n={id} initialText={note?.text ?? ""} initialUpdated={note?.updated ?? ""} />
 
       {report ? (
         <>

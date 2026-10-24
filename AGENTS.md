@@ -116,6 +116,7 @@ AI-powered, CLI-agnostic job search automation: pipeline tracking, offer evaluat
 | `data/scan-history.tsv` | Scanner dedup history |
 | `data/scan-runs.tsv` | Per-run scan counters (appended by `scan.mjs`, read by `stats.mjs`) |
 | `data/follow-ups.md` | Follow-up history tracker |
+| `data/job-notes.json` | The user's own free-form notes per job, keyed by **tracker#** (`{"85": {"text", "updated"}}`). Written only by the web UI's **My notes** box on `/pipeline/{n}` (`/api/notes` → `web/src/lib/job-notes.mjs`); no CLI writer. Kept out of the tracker's Notes column on purpose — that cell is the pipeline's evaluation summary (`set-status.mjs --note` appends, `--replace-note` replaces), so personal prose there would be appended-after or clobber it. Never a scoring input |
 | `data/blacklist.md` | Do-not-apply companies (user layer, opt-in, never auto-populated; respected by `scan.mjs` and the `auto-pipeline`/`oferta`/`apply` gates) |
 | `data/salary-observations.tsv` | Append-only salary observation log (user layer) |
 | `data/assessments.tsv` | Append-only skills-assessment log (user layer, created on first `add`) |
