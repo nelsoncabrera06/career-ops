@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { readReport, findApplication, pdfReadyForReport, trackerCanDelete } from "@/lib/career-ops";
+import { readReport, findApplication, pdfReadyForReport, trackerCanDelete, readCompanyGroups } from "@/lib/career-ops";
 import { resolveTailoredCover } from "@/lib/apply/cover";
 import { ReportView } from "@/components/report-view";
 
@@ -25,6 +25,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
       canDelete={trackerCanDelete()}
       pdfReadyFromIndex={await pdfReadyForReport(id)}
       coverReady={coverReady}
+      companyGroups={readCompanyGroups()}
     />
   );
 }

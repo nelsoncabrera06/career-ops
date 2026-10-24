@@ -20,6 +20,7 @@ import {
   parseClaudeEvent,
   parseCodexEvent,
   parseGrokEvent,
+  parsePiEvent,
 } from "../../src/lib/run-cli-support.mjs";
 import { createCvEnvelopeFilter } from "../../src/lib/cv-envelope.mjs";
 
@@ -458,6 +459,84 @@ test("Grok survives its own JSON.parse successes (null, bare scalars) and garbag
   assert.equal(parseGrokEvent("42"), null);
   assert.equal(parseGrokEvent('"a string"'), null);
   assert.equal(parseGrokEvent("{not json"), null);
+});
+
+// --- Pi (`--mode json`) ------------------------------------------------------
+
+test("Pi text_delta streams as assistant text", () => {
+  const line = JSON.stringify({
+    type: "message_update",
+    assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: "Tenés 61 " },
+  });
+  assert.deepEqual(parsePiEvent(line), { text: "Tenés 61 " });
+});
+
+test("Pi reasoning and empty deltas never read as an answer", () => {
+  // Forwarding thinking text would set the route's emittedText, so a run that
+  // never answered would pass its honesty gate.
+  for (const frame of [
+    { type: "message_update", assistantMessageEvent: { type: "thinking_delta", delta: "let me think" } },
+    { type: "message_update", assistantMessageEvent: { type: "text_delta", delta: "" } },
+    { type: "message_update", assistantMessageEvent: { type: "text_start", contentIndex: 0 } },
+    { type: "message_update" },
+  ]) {
+    assert.equal(parsePiEvent(JSON.stringify(frame)), null, JSON.stringify(frame));
+  }
+});
+
+test("Pi toolcall_start names the tool", () => {
+  const line = JSON.stringify({
+    type: "message_update",
+    assistantMessageEvent: { type: "toolcall_start", contentIndex: 1, id: "call_1", toolName: "bash" },
+  });
+  assert.deepEqual(parsePiEvent(line), { tool: "bash" });
+});
+
+test("Pi agent_start is the run's ready signal", () => {
+  assert.deepEqual(parsePiEvent(JSON.stringify({ type: "agent_start" })), { status: "Agent ready" });
+});
+
+test("Pi reports tokens and cost ONCE, folded from the whole transcript", () => {
+  // Pi's wire shape: one usage block PER ASSISTANT MESSAGE. The route keeps only
+  // the last numeric cost, so per-message frames would leave the run reporting
+  // the final turn's cents; agent_end carries the transcript to fold instead.
+  const line = JSON.stringify({
+    type: "agent_end",
+    willRetry: false,
+    messages: [
+      { role: "system", content: "" },
+      { role: "user", content: "hi" },
+      {
+        role: "assistant",
+        usage: { input: 56, output: 81, cacheRead: 1664, cacheWrite: 0, cost: { total: 0.0001 } },
+      },
+      { role: "toolResult", content: "…" },
+      {
+        role: "assistant",
+        usage: { input: 246, output: 13, cacheRead: 1792, cacheWrite: 5, cost: { total: 0.0002 } },
+      },
+    ],
+  });
+  // input+output+cacheWrite per message, cacheRead excluded (discounted pool,
+  // same convention as Claude): 56+81+0 + 246+13+5 = 401.
+  const ev = parsePiEvent(line);
+  assert.equal(ev.tokens, 401);
+  assert.equal(ev.tokensAreTotal, true);
+  // Cost is summed as float — compare with a tolerance, not an exact literal.
+  assert.ok(Math.abs(ev.costUsd - 0.0003) < 1e-12, `cost was ${ev.costUsd}`);
+});
+
+test("Pi run with no assistant turn reports nothing, not a free run", () => {
+  assert.equal(parsePiEvent(JSON.stringify({ type: "agent_end", messages: [] })), null);
+  assert.equal(parsePiEvent(JSON.stringify({ type: "agent_end" })), null);
+});
+
+test("Pi survives its own JSON.parse successes and garbage", () => {
+  assert.equal(parsePiEvent("null"), null);
+  assert.equal(parsePiEvent("42"), null);
+  assert.equal(parsePiEvent('"a string"'), null);
+  assert.equal(parsePiEvent("{not json"), null);
+  assert.equal(parsePiEvent(JSON.stringify({ type: "turn_start" })), null);
 });
 
 // --- the fold, which is where the two conventions actually collide ----------

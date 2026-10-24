@@ -7,8 +7,9 @@ import { writeTempPortals, cleanupTempPortals } from "./portals";
 import { profileTargetKeywords } from "@/lib/profile-keywords.mjs";
 import { titleFit } from "@/lib/title-fit.mjs";
 import { resolveScanTimeoutMs, scanTimeoutMessage } from "./scan-timeout.mjs";
-import { ATS_LABEL, ATS_SOURCES, type AtsSource, type DiscoveredOffer, type ExploreFilters, type FitBand, type ScanEvent } from "@/lib/explore";
+import { ATS_LABEL, ATS_SOURCES, PORTALS_SOURCE, sourceLabel, type AtsSource, type DiscoveredOffer, type ExploreFilters, type FitBand, type ScanEvent } from "@/lib/explore";
 import { mergeScanResults, timedOutMessage } from "./scan-merge.mjs";
+import { runPortalsSweep } from "./portals-scan";
 
 export type { DiscoveredOffer, ScanEvent, AtsSource } from "@/lib/explore";
 export { ATS_SOURCES } from "@/lib/explore";
@@ -394,6 +395,11 @@ export async function runDiscovery(filters: ExploreFilters, onEvent: (e: ScanEve
   const sink = { offers: [] as DiscoveredOffer[], seen: new Set<string>() };
 
   try {
+    // Both engines start together — the ATS sweep is not a prerequisite for the
+    // user's own portals.yml boards, and running them in parallel keeps the
+    // whole Fresh scan inside one budget instead of two.
+    const sweepPromise = runPortalsSweep(filters, onEvent, sink, timeoutMs, roleTargets);
+
     if (!useJson) {
       // Older checkouts: one child, human-stdout parse. It streams offers as they
       // arrive, so the ones collected so far are returned; a deadline kill still
@@ -401,6 +407,7 @@ export async function runDiscovery(filters: ExploreFilters, onEvent: (e: ScanEve
       const run = await runScanner(ats, false, filters, tempPortals, onEvent, sink, timeoutMs, roleTargets);
       if (run.failed) onEvent({ kind: "error", message: run.failed });
       else if (run.timedOut) onEvent({ kind: "error", message: scanTimeoutMessage(timeoutMs) });
+      await sweepPromise;
       return sink.offers;
     }
 
@@ -410,6 +417,7 @@ export async function runDiscovery(filters: ExploreFilters, onEvent: (e: ScanEve
     const runs = await Promise.all(
       ats.map((a) => runScanner([a], true, filters, tempPortals, onEvent, sink, timeoutMs, roleTargets)),
     );
+    const sweep = await sweepPromise;
 
     const { offers, seen } = sink;
     const finished: ScanJson[] = [];
@@ -424,9 +432,15 @@ export async function runDiscovery(filters: ExploreFilters, onEvent: (e: ScanEve
     // finished: its offers and counts are kept, and it is still named as incomplete.
     const stopped = runs.map((r) => r.timedOut || r.json?.stoppedEarly === true);
     const timedOut = ats.filter((_, i) => stopped[i]);
-    const incomplete = ats.filter((_, i) => !runs[i].json || stopped[i]);
+    // The portals.yml sweep joins this list as a pseudo-source (§PORTALS_SOURCE),
+    // so it is typed wider than AtsSource — ScanEvent.incomplete takes source ids.
+    const incomplete: (AtsSource | typeof PORTALS_SOURCE)[] = ats.filter((_, i) => !runs[i].json || stopped[i]);
+    // The portals.yml sweep is a source too: it reports nothing until the end
+    // (scan.mjs emits its offers in the receipt), so a kill loses the whole run
+    // and "0 new roles" must not be the story.
+    if (sweep.incomplete) incomplete.push(PORTALS_SOURCE);
 
-    if (finished.length === 0) {
+    if (finished.length === 0 && sweep.offers.length === 0) {
       const failed = runs.find((r) => r.failed)?.failed;
       onEvent({
         kind: "error",
@@ -440,6 +454,15 @@ export async function runDiscovery(filters: ExploreFilters, onEvent: (e: ScanEve
       // No source finished: the timeout is the outcome, as when a stopped child
       // printed nothing. Otherwise it is a note beside the sources that finished.
       onEvent(incomplete.length === ats.length ? { kind: "error", message } : { kind: "log", line: message });
+    }
+    if (sweep.incomplete) {
+      onEvent({
+        kind: "log",
+        line:
+          `Your portals.yml sweep (${sourceLabel(PORTALS_SOURCE)}) didn't finish` +
+          `${sweep.error ? ` — ${sweep.error}` : ""}, so its results are incomplete. ` +
+          `It runs one board at a time; try a shorter date range or raise scan.timeout_seconds in config/profile.yml.`,
+      });
     }
     onEvent({
       kind: "summary",

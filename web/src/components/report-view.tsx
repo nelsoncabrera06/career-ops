@@ -23,6 +23,7 @@ import { MarkAppliedButton } from "@/components/mark-applied-button";
 import { DeleteFromTracker } from "@/components/delete-from-tracker";
 import { ReportMarkdown } from "@/components/report-markdown";
 import { companyPresentation } from "@/lib/company-presentation.mjs";
+import { aliasesOf } from "@/lib/company-aliases.mjs";
 
 // Progressive disclosure of the report. Current oferta.md writes letter F as
 // Interview Plan (STAR+R), not a verdict — never promote by letter (#3416).
@@ -62,6 +63,7 @@ export function ReportView({
   canDelete = false,
   pdfReadyFromIndex = false,
   coverReady = false,
+  companyGroups = [],
 }: {
   id: string;
   app: Application | null;
@@ -75,6 +77,10 @@ export function ReportView({
    *  the page, see resolveTailoredCover). View only — covers are never generated
    *  from here. */
   coverReady?: boolean;
+  /** Brand groups from data/company-aliases.json — the other names this employer
+   *  posts under, shown under the title so the invite email's brand is
+   *  recognisable (see company-aliases.mjs). */
+  companyGroups?: import("@/lib/company-aliases.mjs").CompanyGroup[];
 }) {
   const meta = report ? parseReport(report) : null;
   const field = (label: string) => meta?.fields.find((f) => f.label === label)?.value;
@@ -89,6 +95,7 @@ export function ReportView({
   const applyUrl = httpUrl(url);
   const pdfReady = (app?.pdf ?? "").includes("✅") || pdfReadyFromIndex;
   const company = app ? companyPresentation(app) : null;
+  const aliases = app ? aliasesOf(app.company, companyGroups) : [];
   const companyName = company?.label ?? app?.company ?? meta?.title ?? id;
 
   return (
@@ -109,6 +116,11 @@ export function ReportView({
           </h1>
         </div>
         {app?.role && <p className="mt-1 text-muted">{app.role}</p>}
+        {aliases.length > 0 && (
+          <p className="mt-1 text-xs text-faint">
+            también: <span className="text-muted">{aliases.join(" · ")}</span>
+          </p>
+        )}
 
         <div className="mt-4 flex flex-wrap items-center gap-2.5">
           {app && <StatusSelect n={id} current={app.status} />}

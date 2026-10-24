@@ -365,6 +365,78 @@ export function parseGrokEvent(line) {
 }
 
 /**
+ * Pi (`pi --mode json`) — one JSON object per line, `type`-tagged.
+ *
+ * Pi has no `stream-json` clone of Claude's protocol; its own schema is what it
+ * emits, and the two frames worth mapping are:
+ *
+ *   message_update  { assistantMessageEvent: { type: "text_delta", delta } }
+ *                   -> the assistant's text, token by token
+ *   agent_end       { messages: [...] }  -> the whole transcript on completion
+ *
+ * Token accounting is DELIBERATELY taken from `agent_end` alone: pi reports a
+ * usage block PER ASSISTANT MESSAGE (one API call each), while the route keeps
+ * only the last numeric cost — so streaming per-message cost would leave the run
+ * reporting the final turn's cents instead of the run's. Folding the transcript
+ * once at the end gives both fields the same, correct denominator, and
+ * `tokensAreTotal` tells the fold not to double-count it against itself.
+ *
+ * Pi's `usage.input` EXCLUDES `cacheRead` (it is a separate pool), the same
+ * convention as Claude — so cache writes are added back and cache reads are
+ * not, which is exactly the "billed at full rate" metric /api/usage defines.
+ *
+ * @param {string} line
+ * @returns {ParsedEvent | null}
+ */
+export function parsePiEvent(line) {
+  let ev;
+  try {
+    ev = JSON.parse(line);
+  } catch {
+    return null;
+  }
+  // Same reason as the other parsers' guard: JSON.parse("null") succeeds.
+  if (!ev || typeof ev !== "object") return null;
+
+  if (ev.type === "agent_start") return { status: STATUS_READY };
+
+  if (ev.type === "message_update") {
+    const e = ev.assistantMessageEvent;
+    if (e?.type === "text_delta" && typeof e.delta === "string" && e.delta) return { text: e.delta };
+    if (e?.type === "toolcall_start" && typeof e.toolName === "string" && e.toolName) return { tool: e.toolName };
+    // thinking_delta / toolcall_delta / text_start / text_end carry nothing the
+    // chat should render — unknown frames are not errors.
+    return null;
+  }
+
+  if (ev.type === "agent_end") {
+    const messages = Array.isArray(ev.messages) ? ev.messages : [];
+    let tokens = 0;
+    let cost = 0;
+    let sawCost = false;
+    let turns = 0;
+    for (const m of messages) {
+      const usage = m && m.role === "assistant" ? m.usage : null;
+      if (!usage || typeof usage !== "object") continue;
+      turns += 1;
+      tokens += tokenCount(usage.input) + tokenCount(usage.output) + tokenCount(usage.cacheWrite);
+      const total = usage.cost && typeof usage.cost === "object" ? usage.cost.total : undefined;
+      if (typeof total === "number" && Number.isFinite(total)) {
+        cost += total;
+        sawCost = true;
+      }
+    }
+    // A run with no assistant turn (cancelled, or failed before the first reply)
+    // has nothing to report — null rather than a zeroed figure that would read
+    // as "this run was free".
+    if (turns === 0) return null;
+    return { tokens, tokensAreTotal: true, costUsd: sawCost ? cost : null };
+  }
+
+  return null;
+}
+
+/**
  * Fold one parsed event's token count into a running total.
  *
  * Two wire conventions, and the fold has to be told which one it is holding:

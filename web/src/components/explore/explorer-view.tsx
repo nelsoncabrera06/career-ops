@@ -7,7 +7,7 @@ import { cn } from "@/lib/cn";
 import { instrumentSerif } from "@/lib/fonts";
 import type { Application, InboxJob } from "@/lib/career-ops";
 import { normalizeTextKey } from "@/lib/core/normalize-text-key.mjs";
-import { paramsToFilters, paramsToAi, type ExploreFilters } from "@/lib/explore";
+import { paramsToFilters, paramsToAi, type ExploreFilters, type PortalBoard } from "@/lib/explore";
 import { FilterBuilder } from "./filter-builder";
 import { DiscoveringState } from "./discovering-state";
 import { AiHuntView } from "./ai-hunt-view";
@@ -30,11 +30,14 @@ const CLI_NAMES: Record<string, string> = {
 
 export function ExplorerView({
   seed,
+  portalBoards = [],
   inboxSnapshot,
   appsSnapshot,
   rootExists,
 }: {
   seed: { filters: ExploreFilters; seededFrom: string[] };
+  /** portals.yml boards this scan can also walk (the second engine). */
+  portalBoards?: PortalBoard[];
   inboxSnapshot: InboxJob[];
   appsSnapshot: Application[];
   rootExists: boolean;
@@ -78,7 +81,10 @@ export function ExplorerView({
       initFilters(seed.filters);
       void loadFresh();
     } else {
-      initFilters(sp.toString() ? paramsToFilters(sp) : seed.filters);
+      // Base on the server seed, not DEFAULT_FILTERS: a shared link carries the
+      // search chips, and it must still inherit the portals.yml boards the seed
+      // found (which this module cannot read for itself).
+      initFilters(sp.toString() ? paramsToFilters(sp, seed.filters) : seed.filters);
       // Onboarding hand-off: ?run=1 auto-fires the free scan + flags the first-run
       // banner (the "matches found from your CV, free" reveal).
       if (sp.get("run") === "1") {
@@ -182,14 +188,14 @@ export function ExplorerView({
               </button>
               {refineOpen && (
                 <div className="space-y-4 border-t border-border p-4">
-                  <FilterBuilder filters={filters} onChange={setFilters} seededFrom={seed.seededFrom} />
+                  <FilterBuilder filters={filters} onChange={setFilters} seededFrom={seed.seededFrom} portalBoards={portalBoards} />
                   <DiscoverBar canDiscover={canDiscover} onDiscover={discover} label="Re-cast (free)" />
                 </div>
               )}
             </div>
           ) : (
             <div className="mb-6 rounded-2xl border border-border bg-surface/30 p-5">
-              <FilterBuilder filters={filters} onChange={setFilters} seededFrom={seed.seededFrom} />
+              <FilterBuilder filters={filters} onChange={setFilters} seededFrom={seed.seededFrom} portalBoards={portalBoards} />
               <div className="mt-5">
                 <DiscoverBar canDiscover={canDiscover} onDiscover={discover} label="Discover (free)" />
               </div>

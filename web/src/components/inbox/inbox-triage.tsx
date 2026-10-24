@@ -11,6 +11,8 @@ import { daysSince, seniorityFromTitle, sourceFromUrl, SENIORITY_ORDER, type Sen
 import { FacetChips } from "./facet-chips";
 import { TriageRow, type RowScore } from "./triage-row";
 import { ShortlistTray, type ShortItem } from "./shortlist-tray";
+import { companySearchText } from "@/lib/company-presentation.mjs";
+import { aliasesOf } from "@/lib/company-aliases.mjs";
 import { cn } from "@/lib/cn";
 
 const SHORTLIST_KEY = "career-ops:shortlist";
@@ -22,7 +24,7 @@ const BATCH = 20;
 // Default is a small fresh batch (never the full wall); free facets + Save/Skip narrow
 // it; only "Score shortlist" spends tokens. 🔴 The shell is agnostic to what makes a
 // role relevant — order is freshness with a single documented plug point.
-export function InboxTriage({ inbox }: { inbox: InboxJob[] }) {
+export function InboxTriage({ inbox, companyGroups = [] }: { inbox: InboxJob[]; companyGroups?: import("@/lib/company-aliases.mjs").CompanyGroup[] }) {
   const router = useRouter();
   const { jobs, startJob } = useJobs();
   // Serialize skip/undo per URL so a fast Undo cannot lose the race to Skip.
@@ -137,10 +139,12 @@ export function InboxTriage({ inbox }: { inbox: InboxJob[] }) {
         if (sources.size && (!e.source || !sources.has(e.source))) return false;
         if (seniorities.size && (!e.seniority || !seniorities.has(e.seniority))) return false;
         if (locQ.trim() && !(e.job.location || "").toLowerCase().includes(locQ.trim().toLowerCase())) return false;
-        if (kw.trim() && !`${e.job.company} ${e.job.role}`.toLowerCase().includes(kw.trim().toLowerCase())) return false;
+        // Search matches a brand alias too: the posting is filed under whichever
+        // name the board printed, but the user may only know the one that emailed.
+        if (kw.trim() && !companySearchText(e.job, companyGroups).toLowerCase().includes(kw.trim().toLowerCase())) return false;
         return true;
       }),
-    [enriched, hidden, within, sources, seniorities, locQ, kw],
+    [enriched, hidden, within, sources, seniorities, locQ, kw, companyGroups],
   );
 
   // 🔴 SINGLE ORDER PLUG POINT — freshness only (newest first_seen first; unknown last).
@@ -317,6 +321,7 @@ export function InboxTriage({ inbox }: { inbox: InboxJob[] }) {
               job={e.job}
               source={e.source}
               age={e.age}
+              aliases={aliasesOf(e.job.company, companyGroups)}
               scored={scoreByUrl.get(e.job.url)}
               selected={selected.has(e.job.url)}
               shortlisted={isShortlisted(e.job.url)}

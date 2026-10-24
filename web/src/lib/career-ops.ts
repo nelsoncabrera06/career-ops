@@ -9,6 +9,12 @@ import { parseStatusLog } from "@/lib/pipeline-sankey.mjs";
 // Pipeline rows are parsed in a plain .mjs for the same reason as
 // tracker-table.mjs: so `node --test` can exercise the real parser.
 import { parseInbox, splitLines } from "@/lib/pipeline-table.mjs";
+// Brand aliases ("the same employer under three names") — pure parser + matcher,
+// the file read stays here with every other data reader.
+import { parseCompanyGroups } from "@/lib/company-aliases.mjs";
+// JSDoc typedef, not a TS type — spelled the way clis.ts already imports
+// ParsedEvent out of run-cli-support.mjs, so `.mjs` keeps a single definition.
+type CompanyGroup = import("@/lib/company-aliases.mjs").CompanyGroup;
 // One definition of the `{n}-RESERVED.md` convention, shared with
 // run-cli-support.mjs — see report-files.mjs for why it lives there.
 import { isReservedReportFile } from "@/lib/report-files.mjs";
@@ -312,7 +318,22 @@ export type PipelineSummary = {
   rootExists: boolean;
   inbox: InboxJob[];
   applications: Application[];
+  /** Brand groups from data/company-aliases.json (see company-aliases.mjs). */
+  companyGroups: CompanyGroup[];
 };
+
+/**
+ * Read the user's company-alias groups (data/company-aliases.json).
+ *
+ * Optional by design: a missing file is the normal case for most users and
+ * means "no aliases", never an error. A malformed file is skipped too — the
+ * pipeline page must still render, and parseCompanyGroups is the single place
+ * that decides what is usable.
+ */
+export function readCompanyGroups(): CompanyGroup[] {
+  const raw = read("data/company-aliases.json");
+  return raw ? parseCompanyGroups(raw) : [];
+}
 
 export function pipelineSummary(): PipelineSummary {
   const root = careerOpsRoot();
@@ -324,6 +345,7 @@ export function pipelineSummary(): PipelineSummary {
     // triage view orders/faceted-filters on it entirely client-side.
     inbox: readInbox().map((j) => ({ ...j, postedAt: j.postedAt ?? scanDates.get(j.url) })),
     applications: readApplications(),
+    companyGroups: readCompanyGroups(),
   };
 }
 

@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { X, Ban, Clock, MapPin, ChevronDown, SlidersHorizontal } from "lucide-react";
+import { X, Ban, Clock, MapPin, ChevronDown, SlidersHorizontal, LayoutGrid } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { ATS_LABEL, ATS_SOURCES, cleanChips, type AtsSource, type ExploreFilters } from "@/lib/explore";
+import { ATS_LABEL, ATS_SOURCES, cleanChips, type AtsSource, type ExploreFilters, type PortalBoard } from "@/lib/explore";
 
 const RECENCY = [
   { label: "24h", days: 1 },
@@ -105,10 +105,15 @@ export function FilterBuilder({
   filters,
   onChange,
   seededFrom = [],
+  portalBoards = [],
 }: {
   filters: ExploreFilters;
   onChange: (f: ExploreFilters) => void;
   seededFrom?: string[];
+  /** `job_boards` the second engine can walk (see lib/core/portals-scan.ts).
+   *  Empty when the user's portals.yml configures none — the ATS sweep then
+   *  runs alone, which is also what an empty `filters.portals` means. */
+  portalBoards?: PortalBoard[];
 }) {
   const [advanced, setAdvanced] = useState(false);
   const set = (patch: Partial<ExploreFilters>) => onChange({ ...filters, ...patch });
@@ -116,6 +121,12 @@ export function FilterBuilder({
     const has = filters.ats.includes(a);
     const next = has ? filters.ats.filter((x) => x !== a) : [...filters.ats, a];
     set({ ats: next.length ? next : filters.ats });
+  };
+  // Unlike toggleAts, emptying the list is a legitimate state ("ATS datasets
+  // only"), so this never refuses to switch the last board off.
+  const togglePortal = (name: string) => {
+    const has = filters.portals.includes(name);
+    set({ portals: has ? filters.portals.filter((x) => x !== name) : [...filters.portals, name] });
   };
 
   return (
@@ -173,6 +184,39 @@ export function FilterBuilder({
             ))}
           </div>
         </div>
+
+        {portalBoards.length > 0 && (
+          <div className="min-w-[18rem]">
+            <Label hint={filters.portals.length === 0 ? "off = ATS datasets only" : "walked with scan.mjs"}>
+              <span className="inline-flex items-center gap-1.5">
+                <LayoutGrid className="size-3.5 text-muted" /> Your portals
+              </span>
+            </Label>
+            <div className="flex flex-wrap gap-1.5">
+              {portalBoards.map((b) => {
+                const on = filters.portals.includes(b.name);
+                return (
+                  <button
+                    key={b.name}
+                    type="button"
+                    onClick={() => togglePortal(b.name)}
+                    title={b.provider ? `provider: ${b.provider}` : "no provider — scan.mjs skips it"}
+                    className={cn(
+                      "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors max-sm:min-h-[44px]",
+                      on ? "border-brand/40 bg-brand-soft text-brand" : "border-border text-muted hover:text-foreground",
+                      !b.provider && "opacity-60",
+                    )}
+                  >
+                    {b.name}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-1 text-[11px] text-faint">
+              The <code>job_boards</code> in your portals.yml — same scan.mjs the CLI runs, not an ATS dataset.
+            </p>
+          </div>
+        )}
 
         <div>
           <Label hint={filters.ats.length === 0 ? "pick at least one" : undefined}>Sources</Label>

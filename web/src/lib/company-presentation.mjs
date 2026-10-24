@@ -2,6 +2,8 @@
 // field remains the end employer, so `?` must never be replaced with the
 // recruiter or agency recorded in `via`.
 
+import { aliasesOf } from "./company-aliases.mjs";
+
 const DIRECT_VIA = /^(n\/?a|tbd|none|null|-|—|–)$/i;
 
 /**
@@ -26,8 +28,15 @@ export function companyPresentation({ company = "", via = "" } = {}) {
   return { label: "Confidential employer", logoName: "Confidential employer" };
 }
 
-/** @param {{ company?: string, via?: string, role?: string }} application */
-export function companySearchText(application) {
+/** @param {{ company?: string, via?: string, role?: string }} application
+ *  @param {{names: string[], note?: string}[]} [groups] brand groups from
+ *  data/company-aliases.json — see company-aliases.mjs. Optional so every
+ *  existing caller (and test) keeps working unchanged. */
+export function companySearchText(application, groups = []) {
   const { label } = companyPresentation(application);
-  return `${application?.company ?? ""} ${application?.via ?? ""} ${label} ${application?.role ?? ""}`;
+  const base = `${application?.company ?? ""} ${application?.via ?? ""} ${label} ${application?.role ?? ""}`;
+  // The aliases are why this function takes the groups at all: a row filed as
+  // "Netkel Consulting" must answer a search for "Cosys Global" or "Kelsoft".
+  const aliases = aliasesOf(application?.company ?? "", groups);
+  return aliases.length ? `${base} ${aliases.join(" ")}` : base;
 }

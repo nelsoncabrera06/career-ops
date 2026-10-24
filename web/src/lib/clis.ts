@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { codexStreamArgs, isFatalClaudeStderr, isFatalCodexStderr, parseClaudeEvent, parseCodexEvent, parseGrokEvent } from "./run-cli-support.mjs";
+import { codexStreamArgs, isFatalClaudeStderr, isFatalCodexStderr, parseClaudeEvent, parseCodexEvent, parseGrokEvent, parsePiEvent } from "./run-cli-support.mjs";
 
 // Server-only (node imports). The agnostic runtimes career-ops can delegate to
 // in headless mode (AGENTS.md). Install URLs from career-ops-docs.
@@ -61,7 +61,20 @@ export const KNOWN: CliSpec[] = [
   { id: "codex", name: "Codex", bin: "codex", run: "codex exec", url: "https://github.com/openai/codex", args: (p) => ["exec", p], streamArgs: codexStreamArgs, parseEvent: parseCodexEvent, stderrIsFatal: isFatalCodexStderr },
   { id: "gemini", name: "Gemini CLI", bin: "gemini", run: "gemini -p", url: "https://github.com/google-gemini/gemini-cli", args: (p) => ["-p", p] },
   { id: "opencode", name: "OpenCode", bin: "opencode", run: "opencode run", url: "https://opencode.ai", args: (p) => ["run", p] },
-  { id: "pi", name: "Pi", bin: "pi", run: "pi -p", url: "https://github.com/earendil-works/pi", args: (p) => ["--no-session", "-p", p] },
+  // Pi's `--mode json` is its OWN frame schema (message_update/text_delta, then
+  // a whole-transcript agent_end) — not Claude's, not Grok's. Structured on both
+  // paths so the chat streams text as it arrives instead of appearing to hang
+  // until the very end, which is what made a slow prompt look like a dead CLI.
+  {
+    id: "pi",
+    name: "Pi",
+    bin: "pi",
+    run: "pi -p",
+    url: "https://github.com/earendil-works/pi",
+    args: (p) => ["--no-session", "-p", p],
+    streamArgs: (p) => ["--no-session", "-p", "--mode", "json", p],
+    parseEvent: parsePiEvent,
+  },
   { id: "copilot", name: "GitHub Copilot CLI", bin: "copilot", run: "copilot -p", url: "https://docs.github.com/en/copilot/github-copilot-in-the-cli", args: (p) => ["-p", p] },
   { id: "qwen", name: "Qwen CLI", bin: "qwen", run: "qwen -p", url: "https://qwen.ai/qwencode", args: (p) => ["-p", p] },
   { id: "antigravity", name: "Antigravity CLI", bin: "agy", run: "agy -p", url: "https://antigravity.google", args: (p) => ["-p", p] },

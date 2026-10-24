@@ -12,7 +12,10 @@ const ADVISOR_SCOPE = scopeFrom("Read,WebFetch,Glob,Grep");
 
 export const runtime = "nodejs"; // child_process (spawn) requires the Node runtime
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+// A structured CLI streams, but a long advisor turn (many file reads) still
+// outlives 120s; the killer below is the real budget and it is now streaming-
+// aware, so this only needs headroom over it.
+export const maxDuration = 300;
 
 const SYSTEM_PREAMBLE = `You are the career-ops assistant — a proactive, friendly career co-pilot for a person who is actively job-hunting. You live inside their LOCAL career-ops web dashboard (a pipeline of evaluated jobs, A–F reports, their CV, analytics) and run on their own AI CLI.
 
@@ -98,6 +101,13 @@ export async function POST(req: Request) {
   // (remember → /api/memory, setStatus → /api/status), never the CLI editing
   // files directly. Scope its tools so it can advise (read) but not blind-write.
   const isClaude = cliId === "claude";
+  // A CLI that ships its own event parser (claude, codex, grok, pi) streams
+  // STRUCTURED output — the route renders its text deltas. Everything else is
+  // plain text passed straight through. Without this, pi buffered its entire
+  // answer and only printed at exit, so a prompt that took longer than the kill
+  // budget looked exactly like a dead/unauthenticated CLI.
+  const parseEvent = isClaude ? null : spec.parseEvent;
+  const structured = Boolean(spec.streamArgs && parseEvent);
   // allowedTools must be COMMA-separated; disallowedTools is the hard guardrail
   // so the advisor can read (and WebFetch) but never blind-writes or shells out.
   const args = isClaude
@@ -120,7 +130,9 @@ export async function POST(req: Request) {
         "--disallowedTools",
         ADVISOR_SCOPE.disallowed,
       ]
-    : spec.args(prompt);
+    : structured
+      ? (spec.streamArgs ?? spec.args)(prompt)
+      : spec.args(prompt);
 
   // The advisor reads and fetches but must never write — the same intent the
   // Claude branch spells as Read,WebFetch,Glob,Grep with Bash/Write/Edit denied.
@@ -150,13 +162,19 @@ export async function POST(req: Request) {
     start(controller) {
       let buf = "";
       let emitted = false;
+      // Last stderr lines, bounded. Kept for the failure path below: the old
+      // message guessed ("is the CLI authenticated?") and threw away whatever
+      // the CLI actually said, which is why a quota wall or a signed-out Grok
+      // was indistinguishable from a broken install.
+      let stderrTail = "";
+      let parseError = "";
       killer = setTimeout(() => {
         try {
           child.kill("SIGTERM");
         } catch {
           /* ignore */
         }
-      }, 90_000);
+      }, 180_000);
       const safeClose = () => {
         if (!closed) {
           closed = true;
@@ -192,30 +210,41 @@ export async function POST(req: Request) {
 
       child.stdout.on("data", (d: Buffer) => {
         if (closed) return;
-        if (!isClaude) {
+        if (!isClaude && !structured) {
           emit(d.toString());
           return;
         }
-        // line-buffered NDJSON → emit only assistant text deltas
+        // line-buffered NDJSON → emit only assistant text
         buf += d.toString();
         let nl: number;
         while ((nl = buf.indexOf("\n")) !== -1) {
           const line = buf.slice(0, nl).trim();
           buf = buf.slice(nl + 1);
           if (!line) continue;
-          try {
-            const obj = JSON.parse(line);
-            if (obj.type === "stream_event" && obj.event?.type === "content_block_delta") {
-              const text = obj.event.delta?.text;
-              if (typeof text === "string") emit(text);
+          if (isClaude) {
+            try {
+              const obj = JSON.parse(line);
+              if (obj.type === "stream_event" && obj.event?.type === "content_block_delta") {
+                const text = obj.event.delta?.text;
+                if (typeof text === "string") emit(text);
+              }
+            } catch {
+              /* partial / non-json line — skip */
             }
-          } catch {
-            /* partial / non-json line — skip */
+            continue;
           }
+          // Structured CLI with its own schema: the parser is the only place
+          // that knows its frames (see clis.ts's INVARIANT note).
+          const ev = parseEvent?.(line) ?? null;
+          if (ev?.text) emit(ev.text);
+          if (ev?.error && !parseError) parseError = ev.error;
         }
       });
       child.stderr.on("data", (d: Buffer) => {
         const s = d.toString();
+        const kept = s.trim();
+        if (kept) stderrTail = `${stderrTail}\n${kept}`.slice(-1200).trim();
+        // Still surface obvious failures live rather than only at the end.
         if (/error|not found|denied|fatal/i.test(s)) {
           safeEnqueue(`\n[${spec.name}] ${s.trim()}\n`);
         }
@@ -224,9 +253,18 @@ export async function POST(req: Request) {
         safeEnqueue(`\n[error launching ${spec.name}: ${e.message}]`);
         safeClose();
       });
-      child.on("close", () => {
+      child.on("close", (code, signal) => {
         if (!emitted) {
-          safeEnqueue("_(no output — is the CLI authenticated?)_");
+          // Say what ACTUALLY happened. "No output" alone sent the user looking
+          // for an auth problem that may not exist (and hid the real ones: a
+          // quota wall, a signed-out CLI, or our own kill at the time limit).
+          const status = signal ? `detenido con ${signal} (límite de tiempo)` : `salió con código ${code ?? "?"}`;
+          const detail = parseError || stderrTail;
+          safeEnqueue(
+            detail
+              ? `_(${spec.name} no devolvió respuesta — ${status}.\n\n${detail.slice(-800)})_`
+              : `_(Sin salida de ${spec.name} — ${status}. Si no fue un timeout, lo más probable es que el CLI no esté autenticado: corré \`${spec.bin}\` una vez en una terminal para iniciar sesión.)_`,
+          );
         }
         safeClose();
       });

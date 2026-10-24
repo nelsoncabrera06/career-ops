@@ -5003,6 +5003,20 @@ async function main() {
       duplicates: totalDupes,
       added: verifiedOffers.length,
       added_urls: verifiedOffers.map(offer => offer.url),
+      // The postings themselves, not only their URLs. `added_urls` answers "did
+      // it find anything?" but not "which role, where?", so a caller that wants
+      // to SHOW the fresh matches (the web Explorer's portals sweep) had no
+      // structured source for them and would have had to parse human output.
+      // Additive: the counters above are unchanged, and a consumer that only
+      // wants URLs ignores this field.
+      offers: verifiedOffers.map(offer => ({
+        url: offer.url,
+        company: offer.company || '',
+        title: offer.title || '',
+        location: typeof offer.location === 'string' ? offer.location : '',
+        source: offer.source || '',
+        posted_at: postedAtIsoDate(offer.postedAt),
+      })),
       errors: errors.map(({ company, error }) => ({ company, error })),
       unverified_zero: unverifiedZeroTargets,
       dry_run: dryRun,

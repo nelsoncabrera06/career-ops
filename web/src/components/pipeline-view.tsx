@@ -11,7 +11,10 @@ import { canonStatus, scoreNum, scoreTone, statusDot } from "@/lib/format";
 import { InboxTriage } from "@/components/inbox/inbox-triage";
 import { cn } from "@/lib/cn";
 import { companyPresentation, companySearchText } from "@/lib/company-presentation.mjs";
+import { aliasesOf } from "@/lib/company-aliases.mjs";
 import { compareTrackerNumbers } from "@/lib/pipeline-sort.mjs";
+
+type CompanyGroup = import("@/lib/company-aliases.mjs").CompanyGroup;
 
 // INBOX (the triage queue) is the default tab; the rest filter the tracker.
 const TABS = [
@@ -35,9 +38,11 @@ type SortKey = (typeof SORT_KEYS)[number];
 export function PipelineView({
   applications,
   inbox,
+  companyGroups = [],
 }: {
   applications: Application[];
   inbox: InboxJob[];
+  companyGroups?: CompanyGroup[];
 }) {
   const params = useSearchParams();
   const router = useRouter();
@@ -104,7 +109,7 @@ export function PipelineView({
     }
     if (q.trim()) {
       const needle = q.toLowerCase();
-      rows = rows.filter((r) => companySearchText(r).toLowerCase().includes(needle));
+      rows = rows.filter((r) => companySearchText(r, companyGroups).toLowerCase().includes(needle));
     }
     return [...rows].sort((a, b) => {
       if (sort.key === "tracker") return compareTrackerNumbers(a, b) * sort.dir;
@@ -119,7 +124,7 @@ export function PipelineView({
       const bValue = sort.key === "company" ? companyPresentation(b).label : b[sort.key] || "";
       return aValue.localeCompare(bValue) * sort.dir;
     });
-  }, [applications, tab, q, sort, minFilter]);
+  }, [applications, tab, q, sort, minFilter, companyGroups]);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8 max-sm:pb-24">
@@ -191,7 +196,7 @@ export function PipelineView({
       {tab === "INBOX" ? (
         /* ── Inbox: the triage surface (Abundance → Triage → Shortlist → Score) ── */
         pendingInbox.length > 0 ? (
-          <InboxTriage inbox={pendingInbox} />
+          <InboxTriage inbox={pendingInbox} companyGroups={companyGroups} />
         ) : (
           <InboxEmpty count={0} filtered={false} />
         )
@@ -229,6 +234,7 @@ export function PipelineView({
             <tbody className="divide-y divide-border">
               {filtered.map((r, i) => {
                 const company = companyPresentation(r);
+                const aliases = aliasesOf(r.company, companyGroups);
                 return (
                   <tr key={`${r.n}-${i}`} className="group transition-colors hover:bg-surface/40">
                     <td className="whitespace-nowrap px-4 py-3 font-medium tabular-nums">
@@ -241,6 +247,14 @@ export function PipelineView({
                         <CompanyLogo name={company.logoName} size={20} />
                         {company.label}
                       </Link>
+                      {/* The other brands this employer posts under. Visible, not just
+                          searchable: the whole point is that the user recognises the
+                          name that emailed them. */}
+                      {aliases.length > 0 && (
+                        <p className="mt-1 text-[11px] text-faint">
+                          también: <span className="text-muted">{aliases.join(" · ")}</span>
+                        </p>
+                      )}
                     </td>
                   <td className="px-4 py-3 text-muted">
                     <Link href={`/pipeline/${r.n}`}>{r.role}</Link>

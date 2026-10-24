@@ -51,6 +51,7 @@ export function TriageRow({
   job,
   source,
   age,
+  aliases = [],
   scored,
   selected,
   shortlisted,
@@ -63,6 +64,8 @@ export function TriageRow({
   job: InboxJob;
   source: AtsSource | null;
   age: number | null;
+  /** Other brands the same employer posts under (data/company-aliases.json). */
+  aliases?: string[];
   scored?: RowScore;
   selected: boolean;
   shortlisted: boolean;
@@ -109,6 +112,9 @@ export function TriageRow({
           {job.location && <span className="truncate">{job.location}</span>}
           {source && <span className="rounded bg-surface-hover px-1 py-px font-medium text-muted">{ATS_LABEL[source]}</span>}
           {ago && <span>{ago}</span>}
+          {/* The other brands this posting goes by — the one in the invite email
+              is often not the one the board printed in the company field. */}
+          {aliases.length > 0 && <span className="truncate">también: {aliases.join(" · ")}</span>}
           {/* 🔴 CRUDA: honest "not scored" — no fabricated match%. */}
           {!evaluated && <span className="italic text-muted">not scored</span>}
         </p>

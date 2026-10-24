@@ -13,6 +13,24 @@ export const ATS_LABEL: Record<AtsSource, string> = {
   workday: "Workday",
 };
 
+/** Pseudo-source for the `portals.yml` sweep — the second engine behind a Fresh
+ *  scan (see lib/core/portals-scan.ts). It is not an ATS dataset: the boards it
+ *  walks are the user's own config, so its offers carry the BOARD's label as
+ *  `ats` while the source panel groups them under this one id. */
+export const PORTALS_SOURCE = "portals";
+export const PORTALS_LABEL = "Your portals";
+
+/** A human label for any source id — a known ATS, the portals pseudo-source, or
+ *  an arbitrary board/provider label an offer arrived with. */
+export function sourceLabel(id: string): string {
+  if (id === PORTALS_SOURCE) return PORTALS_LABEL;
+  return ATS_LABEL[id as AtsSource] ?? id;
+}
+
+/** One `job_boards` entry the sweep can run, as the server seed reports it. */
+export type PortalBoard = { name: string; provider: string | null };
+
+
 /** The full UI filter state. The keyword/location lists mirror scan.mjs's
  *  buildTitleFilter / buildLocationFilter semantics; sinceDays/ats/limitPerAts map
  *  to scan-ats-full.mjs's --since / --ats / --limit. */
@@ -25,6 +43,10 @@ export type ExploreFilters = {
   alwaysAllow: string[];
   sinceDays: number;
   ats: AtsSource[];
+  /** `portals.yml` `job_boards` names to sweep with `scan.mjs`, alongside the
+   *  ATS datasets. Empty = the ATS sweep only. Seeded server-side from the
+   *  user's config (this module is client-safe and cannot read files). */
+  portals: string[];
   limitPerAts: number;
 };
 
@@ -37,6 +59,7 @@ export const DEFAULT_FILTERS: ExploreFilters = {
   alwaysAllow: [],
   sinceDays: 7,
   ats: [...ATS_SOURCES],
+  portals: [],
   limitPerAts: 150,
 };
 
@@ -126,6 +149,15 @@ function cleanAts(v: unknown): AtsSource[] {
   return out.length ? Array.from(new Set(out)) : [...ATS_SOURCES];
 }
 
+/** Board names come from the user's own portals.yml, so there is no fixed list to
+ *  validate against here — dedupe, trim, and let the sweep ignore a name that no
+ *  longer exists in the config. An empty list is meaningful (ATS sweep only). */
+function cleanPortals(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  const out = v.map((s) => String(s).trim()).filter(Boolean);
+  return Array.from(new Set(out));
+}
+
 /** Apply a (possibly partial) action/assistant patch onto a base. The assistant
  *  emits {positive,negative,allow,block,alwaysAllow,since,ats,limit}. With
  *  merge=true, list fields are ADDED to the base; otherwise the given fields
@@ -154,6 +186,9 @@ export function parseExplorePatch(
   if (raw.limit !== undefined) next.limitPerAts = clampNum(raw.limit, 50, 500, base.limitPerAts);
   if (raw.limitPerAts !== undefined) next.limitPerAts = clampNum(raw.limitPerAts, 50, 500, base.limitPerAts);
   if (raw.ats !== undefined) next.ats = cleanAts(raw.ats);
+  // Distinguish "absent" (keep the server seed / the restored base) from
+  // "present but empty" (the user switched every portal off).
+  if (raw.portals !== undefined) next.portals = cleanPortals(raw.portals);
   return next;
 }
 
@@ -168,6 +203,9 @@ export function filtersToParams(f: ExploreFilters): string {
   if (f.alwaysAllow.length) sp.set("home", f.alwaysAllow.join(","));
   if (f.sinceDays !== DEFAULT_FILTERS.sinceDays) sp.set("since", String(f.sinceDays));
   if (f.ats.length !== ATS_SOURCES.length) sp.set("ats", f.ats.join(","));
+  // Encoded whenever it is on: the seed comes from the user's config, so an
+  // empty default would make "on" and "unknown" indistinguishable on restore.
+  if (f.portals.length) sp.set("portals", f.portals.join(","));
   if (f.limitPerAts !== DEFAULT_FILTERS.limitPerAts) sp.set("limit", String(f.limitPerAts));
   return sp.toString();
 }
@@ -184,6 +222,7 @@ export function paramsToFilters(sp: URLSearchParams, base: ExploreFilters = DEFA
       alwaysAllow: split(sp.get("home")),
       since: sp.get("since") ?? undefined,
       ats: split(sp.get("ats")),
+      portals: split(sp.get("portals")),
       limit: sp.get("limit") ?? undefined,
     },
     base,

@@ -26,12 +26,41 @@ Open http://localhost:3000. The app reads the career-ops checkout it lives in
 
 - **Pipeline** — your tracker as a sortable, filterable table; status changes
   write back through the core's own scripts.
+  Search also matches the other brand names an employer posts under (see
+  [Company aliases](#company-aliases) below).
 - **Explore** — the free reverse-ATS scan with an honest partial-dataset
   indicator, plus AI-assisted discovery (bring your own CLI/keys, including Grok Build CLI).
 - **Apply** — assisted form prefill with a hard rule inherited from the core:
   **it never submits for you** — you always press the button.
 - **Today / Analytics / CV / Config** — action queue, funnel + pipeline Sankey,
   CV editing with preview, settings.
+
+## Company aliases
+
+One posting can carry three names: the staffing arm printed in the board's
+company field, the end employer named in the ad body, and the holding group that
+signed the interview invite (e.g. "Netkel Consulting" / "Cosys Global" /
+"Grupo Kelsoft"). The tracker holds ONE `company` value, so a search for the
+two that aren't in the row returns nothing.
+
+`data/company-aliases.json` (optional, your data — never committed) groups those
+names. Rows show the alternatives under the company ("también: …") and the
+search box in **Pipeline** and **Inbox** matches any of them:
+
+```json
+{
+  "groups": [
+    {
+      "names": ["Netkel Consulting", "Cosys Global", "Grupo Kelsoft"],
+      "note": "who is who"
+    }
+  ]
+}
+```
+
+A bare array (`[["A", "B"]]`) also works. The canonical `company` field is never
+rewritten — aliases are display + search only, so logos, analytics and dedup keep
+one identity per row. Matching ignores case, accents and punctuation.
 
 ## Safety
 
