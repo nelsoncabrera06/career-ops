@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Search, ChevronsUpDown, X, Compass, ArrowRight } from "lucide-react";
+import { Search, ChevronsUpDown, X, Compass, ArrowRight, Trash2, Loader2 } from "lucide-react";
 import type { Application, InboxJob } from "@/lib/career-ops";
 import { Badge } from "@/components/ui/badge";
 import { CompanyLogo } from "@/components/company-logo";
@@ -130,6 +130,103 @@ export function PipelineView({
     });
   }, [applications, tab, q, sort, minFilter, companyGroups]);
 
+  // ── Bulk removal ──
+  // Selecting rows is the one thing the detail page forced you to do one by one:
+  // a Discarded evaluation you never applied to is noise, and removing it meant
+  // opening it. Selection is confined to the CURRENT filtered set on purpose —
+  // switching tab/search clears it, so "Remove 3" can never mean three rows you
+  // can no longer see.
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [confirming, setConfirming] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [removeErrors, setRemoveErrors] = useState<string[]>([]);
+  const headBox = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    setSelected(new Set());
+    setConfirming(false);
+    setRemoveErrors([]);
+  }, [tab, q, minFilter]);
+
+  // Only rows with a real numeric # can be removed: `tracker.mjs delete --num N`
+  // takes an integer, and backfilled rows carry a sentinel (`N/A`, `—`, `-`).
+  const visibleIds = useMemo(
+    () => filtered.filter((r) => /^\d+$/.test(r.n)).map((r) => r.n),
+    [filtered],
+  );
+  // Advice must fit what is selected: telling someone in the DISCARDED tab to
+  // "set the status to Discarded" is nonsense — those rows already are.
+  const allSelectedDiscarded = useMemo(() => {
+    const rows = filtered.filter((r) => selected.has(r.n));
+    return rows.length > 0 && rows.every((r) => canonStatus(r.status).includes("DISCARDED"));
+  }, [filtered, selected]);
+  const selectedVisible = useMemo(() => visibleIds.filter((id) => selected.has(id)), [visibleIds, selected]);
+
+  useEffect(() => {
+    const box = headBox.current;
+    if (!box) return;
+    box.indeterminate = selectedVisible.length > 0 && selectedVisible.length < visibleIds.length;
+    box.checked = visibleIds.length > 0 && selectedVisible.length === visibleIds.length;
+  }, [selectedVisible, visibleIds]);
+
+  const toggleRow = (id: string) =>
+    setSelected((s) => {
+      const next = new Set(s);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const toggleAll = () =>
+    setSelected((s) => {
+      const all = visibleIds.length > 0 && visibleIds.every((id) => s.has(id));
+      const next = new Set(s);
+      for (const id of visibleIds) {
+        if (all) next.delete(id);
+        else next.add(id);
+      }
+      return next;
+    });
+
+  // Sequential on purpose: /api/tracker/delete shells out to `tracker.mjs delete`,
+  // which holds the tracker write-gate for one row at a time (and answers 409 while
+  // another delete runs). Rows that FAIL stay selected, so a retry is one click
+  // rather than re-picking the survivors.
+  const removeSelected = useCallback(async () => {
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    setRemoving(true);
+    setRemoveErrors([]);
+    setProgress({ done: 0, total: ids.length });
+    const failed: string[] = [];
+    const failedIds = new Set<string>();
+    for (const [i, id] of ids.entries()) {
+      try {
+        const res = await fetch("/api/tracker/delete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ n: id }),
+        });
+        if (!res.ok) {
+          const data = (await res.json().catch(() => ({}))) as { error?: string };
+          failed.push(`#${id}: ${data.error || "couldn't be removed"}`);
+          failedIds.add(id);
+        }
+      } catch {
+        failed.push(`#${id}: couldn't reach the tracker`);
+        failedIds.add(id);
+      }
+      setProgress({ done: i + 1, total: ids.length });
+    }
+    setSelected(failedIds);
+    setRemoving(false);
+    setProgress(null);
+    if (failed.length === 0) setConfirming(false);
+    else setRemoveErrors(failed);
+    router.refresh();
+  }, [selected, router]);
+
   const tabTotal =
     tab === "INBOX" ? 0 : tab === "ALL" ? applications.length : applications.filter((r) => canonStatus(r.status).includes(tab)).length;
 
@@ -224,6 +321,19 @@ export function PipelineView({
           <table className="w-full min-w-[44rem] text-sm">
             <thead className="bg-surface/60 text-left text-xs uppercase tracking-wide text-faint">
               <tr>
+                <th className="w-10 pl-4 pr-1 py-2.5">
+                  <input
+                    ref={headBox}
+                    type="checkbox"
+                    onChange={toggleAll}
+                    aria-label={
+                      selectedVisible.length === visibleIds.length && visibleIds.length > 0
+                        ? "Deselect all rows"
+                        : "Select all rows"
+                    }
+                    className="size-4 cursor-pointer accent-brand"
+                  />
+                </th>
                 {SORT_KEYS.map((k) => (
                   <th
                     key={k}
@@ -250,7 +360,24 @@ export function PipelineView({
                 const company = companyPresentation(r);
                 const aliases = aliasesOf(r.company, companyGroups);
                 return (
-                  <tr key={`${r.n}-${i}`} className="group transition-colors hover:bg-surface/40">
+                  <tr
+                    key={`${r.n}-${i}`}
+                    className={cn(
+                      "group transition-colors",
+                      selected.has(r.n) ? "bg-brand-soft/40" : "hover:bg-surface/40",
+                    )}
+                  >
+                    <td className="w-10 whitespace-nowrap py-3 pl-4 pr-1">
+                      {/^\d+$/.test(r.n) && (
+                        <input
+                          type="checkbox"
+                          checked={selected.has(r.n)}
+                          onChange={() => toggleRow(r.n)}
+                          aria-label={`Select #${r.n} ${company.label} ${r.role}`}
+                          className="size-4 cursor-pointer accent-brand"
+                        />
+                      )}
+                    </td>
                     <td className="whitespace-nowrap px-4 py-3 font-medium tabular-nums">
                       <Link href={`/pipeline/${r.n}`} className="transition-colors group-hover:text-brand">
                         #{r.n}
@@ -294,6 +421,98 @@ export function PipelineView({
         <div className="mt-4 rounded-2xl border border-dashed border-border bg-surface/30 px-6 py-12 text-center">
           <p className="font-display text-lg">No matches</p>
           <p className="mx-auto mt-1 max-w-sm text-sm text-muted">Try a different tab or clear the search.</p>
+        </div>
+      )}
+
+      {/* Bulk bar. Fixed to the viewport bottom (like the inbox shortlist tray) so
+          it stays reachable while the table scrolls; it only exists while rows are
+          selected, and the destructive step is a second, explicit click. */}
+      {tab !== "INBOX" && selected.size > 0 && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-center px-4 pb-4 sm:pb-5">
+          <div className="pointer-events-auto w-full max-w-2xl rounded-2xl border border-border bg-surface px-4 py-3 shadow-xl">
+            {!confirming ? (
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="text-sm font-medium text-foreground tabular-nums">
+                  {selected.size} selected
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRemoveErrors([]);
+                    setConfirming(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-red-400/40 bg-red-500/10 px-3.5 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-500/20 dark:text-red-400 max-sm:min-h-[44px]"
+                >
+                  <Trash2 className="size-3.5" /> Remove from tracker
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelected(new Set())}
+                  className="text-xs text-muted transition-colors hover:text-foreground max-sm:min-h-[44px]"
+                >
+                  Clear
+                </button>
+              </div>
+            ) : (
+              <div>
+                <p className="text-sm font-medium text-foreground">
+                  Permanently remove {selected.size} application{selected.size === 1 ? "" : "s"} from your tracker?
+                </p>
+                <p className="mt-1 text-xs text-muted">
+                  This can’t be undone. Their report files stay on disk.
+                  {!allSelectedDiscarded && (
+                    <> To keep the record instead, set the status to Discarded — that is the soft option and stays in the
+                    tracker.</>
+                  )}
+                </p>
+                {progress && (
+                  <p className="mt-2 text-xs text-muted tabular-nums">
+                    Removing {progress.done}/{progress.total}…
+                  </p>
+                )}
+                {removeErrors.length > 0 && (
+                  <ul className="mt-2 space-y-0.5 text-xs text-red-500">
+                    {removeErrors.slice(0, 6).map((e) => (
+                      <li key={e}>{e}</li>
+                    ))}
+                    {removeErrors.length > 6 && <li>…and {removeErrors.length - 6} more</li>}
+                  </ul>
+                )}
+                <div className="mt-3 flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={removing}
+                    onClick={() => void removeSelected()}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-red-500 px-3.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-red-600 disabled:opacity-50 max-sm:min-h-[44px]"
+                  >
+                    {removing ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+                    {removing
+                      ? `Removing ${progress?.done ?? 0}/${progress?.total ?? selected.size}…`
+                      : `Delete ${selected.size}`}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={removing}
+                    onClick={() => setConfirming(false)}
+                    className="rounded-full border border-border px-3.5 py-1.5 text-xs text-muted transition-colors hover:text-foreground disabled:opacity-50 max-sm:min-h-[44px]"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={removing}
+                    onClick={() => {
+                      setConfirming(false);
+                      setSelected(new Set());
+                    }}
+                    className="ml-auto text-xs text-faint transition-colors hover:text-foreground disabled:opacity-50 max-sm:min-h-[44px]"
+                  >
+                    Clear selection
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
