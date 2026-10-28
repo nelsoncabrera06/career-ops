@@ -7,6 +7,8 @@ import {
   parseAllowedOrigins,
   normalizeOrigin,
   checkRequest,
+  isAllowedOrigin,
+  corsHeaders,
 } from "../../src/lib/origin-guard.mjs";
 
 // --- normalizeHost --------------------------------------------------------
@@ -301,4 +303,42 @@ test("the guard still works with no allowedOrigins passed at all", () => {
     allowedHosts: parseAllowedHosts(""),
   });
   assert.equal(d.ok, true);
+});
+
+// --- corsHeaders / isAllowedOrigin ----------------------------------------
+
+test("isAllowedOrigin only accepts an origin the user named", () => {
+  const allowed = parseAllowedOrigins("chrome-extension://abcdef");
+  assert.equal(isAllowedOrigin("chrome-extension://abcdef", allowed), true);
+  assert.equal(isAllowedOrigin("chrome-extension://fedcba", allowed), false);
+  assert.equal(isAllowedOrigin("https://evil.test", allowed), false);
+  assert.equal(isAllowedOrigin("null", parseAllowedOrigins("null")), false);
+  assert.equal(isAllowedOrigin("chrome-extension://abcdef", parseAllowedOrigins("")), false);
+});
+
+test("corsHeaders echoes the named origin, never a wildcard", () => {
+  const h = corsHeaders("chrome-extension://abcdef", parseAllowedOrigins("chrome-extension://abcdef"));
+  assert.equal(h["Access-Control-Allow-Origin"], "chrome-extension://abcdef");
+  assert.notEqual(h["Access-Control-Allow-Origin"], "*");
+  assert.equal(h.Vary, "Origin");
+  // No credentials: the extension carries an allowlist entry, not the user's cookies.
+  assert.equal("Access-Control-Allow-Credentials" in h, false);
+});
+
+test("corsHeaders answers the preflight shape a JSON POST triggers", () => {
+  const h = corsHeaders("chrome-extension://abcdef", parseAllowedOrigins("chrome-extension://abcdef"));
+  assert.match(h["Access-Control-Allow-Methods"], /POST/);
+  assert.match(h["Access-Control-Allow-Methods"], /OPTIONS/);
+  assert.match(h["Access-Control-Allow-Headers"], /content-type/i);
+});
+
+test("corsHeaders is null for an origin that is not allowlisted", () => {
+  assert.equal(corsHeaders("https://evil.test", parseAllowedOrigins("chrome-extension://abcdef")), null);
+  assert.equal(corsHeaders("chrome-extension://abcdef", parseAllowedOrigins("")), null);
+  assert.equal(corsHeaders(undefined, parseAllowedOrigins("chrome-extension://abcdef")), null);
+});
+
+test("corsHeaders normalizes the echoed origin it was configured with", () => {
+  const h = corsHeaders("chrome-extension://abcdef/", parseAllowedOrigins("chrome-extension://abcdef"));
+  assert.equal(h["Access-Control-Allow-Origin"], "chrome-extension://abcdef");
 });

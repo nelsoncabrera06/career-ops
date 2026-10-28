@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>career-ops — aplicación asistida</title>
+    <link rel="stylesheet" href="sidepanel.css" />
+  </head>
+  <body>
+    <header class="bar">
+      <div class="brand">
+        <span class="dot" id="statusDot" aria-hidden="true"></span>
+        <span>career-ops</span>
+      </div>
+      <span class="status" id="statusText">comprobando…</span>
+      <button class="icon" id="settingsToggle" title="Ajustes" aria-label="Ajustes">⚙</button>
+    </header>
+
+    <section class="settings" id="settings" hidden>
+      <label class="row">
+        <span>App local</span>
+        <input id="serverUrl" type="url" spellcheck="false" placeholder="http://localhost:3000" />
+      </label>
+      <label class="row">
+        <span>CLI que redacta</span>
+        <select id="cliSelect"></select>
+      </label>
+      <div class="hint" id="settingsHint">
+        La app local tiene que estar corriendo (<code>cd web &amp;&amp; npm run dev</code>) y su
+        <code>.env.local</code> debe incluir el origen de esta extensión. Ver <code>extension/README.md</code>.
+      </div>
+      <button class="ghost" id="retry">Reconectar</button>
+    </section>
+
+    <main>
+      <div class="intro">
+        <h1>Formulario abierto</h1>
+        <p>
+          Leo los campos de esta pestaña y redacto cada respuesta con tu <code>cv.md</code>, tu perfil y el
+          reporte de esa oferta. Tú decides qué se escribe.
+        </p>
+      </div>
+
+      <div class="access" id="access" hidden>
+        <strong id="accessTitle">Chrome no me deja leer esta pestaña</strong>
+        <p class="hint" id="accessHint">
+          Pasa cuando el panel ya estaba abierto antes de llegar aquí. Un clic y queda arreglado para siempre
+          en este navegador.
+        </p>
+        <div class="actions">
+          <button class="primary" id="grant">Dar acceso a los sitios de empleo</button>
+          <button class="ghost" id="accessRetry">Volver a intentar</button>
+        </div>
+        <p class="hint">
+          Chrome te pedirá permiso una sola vez («leer y cambiar datos en todos los sitios»): es lo que hace
+          falta para leer el formulario de cualquier ATS. Alternativa sin permisos: pulsa el icono de
+          career-ops en la barra con esta pestaña delante.
+        </p>
+      </div>
+
+      <div class="actions">
+        <button class="primary" id="analyze">Analizar esta página</button>
+      </div>
+
+      <div class="meta" id="meta" hidden>
+        <div class="meta-line">
+          <strong id="fieldCount">0 campos</strong>
+          <span id="frameNote"></span>
+        </div>
+        <details class="match">
+          <summary>¿Es esta la oferta correcta?</summary>
+          <p class="hint">Si lo rellenas, busco el reporte de esa oferta; si lo dejas vacío uso el título de la página.</p>
+          <label class="row"><span>Empresa</span><input id="company" type="text" placeholder="Acme" /></label>
+          <label class="row"><span>Puesto</span><input id="role" type="text" placeholder="Backend Engineer" /></label>
+        </details>
+        <div class="actions">
+          <button class="primary" id="draft">Redactar respuestas</button>
+          <button class="ghost" id="copy" hidden>Copiar todo</button>
+        </div>
+      </div>
+
+      <div class="log" id="log" hidden>
+        <div class="log-head">
+          <span id="logTitle">Trabajando…</span>
+          <button class="link" id="logToggle">ocultar</button>
+        </div>
+        <pre id="logBody"></pre>
+      </div>
+
+      <ul class="fields" id="fields"></ul>
+
+      <div class="fillbar" id="fillbar" hidden>
+        <button class="primary" id="fill">Rellenar aprobados</button>
+        <span class="count" id="approvedCount">0 aprobados</span>
+      </div>
+
+      <div class="result" id="result" hidden></div>
+    </main>
+
+    <footer>
+      Nada se envía nunca. La extensión no puede pulsar «Enviar»: rellena, tú revisas, tú envías.
+    </footer>
+
+    <script src="sidepanel.js" type="module"></script>
+  </body>
+</html>

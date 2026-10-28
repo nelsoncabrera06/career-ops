@@ -99,6 +99,41 @@ export function parseAllowedHosts(envValue) {
   return out;
 }
 
+/**
+ * Is this Origin one the user explicitly named? Allowlist membership only — the
+ * Host layer still has to pass separately, so an allowlisted origin cannot reach
+ * a non-loopback host.
+ */
+export function isAllowedOrigin(origin, allowedOrigins) {
+  if (!origin || origin === "null") return false;
+  if (!allowedOrigins || allowedOrigins.size === 0) return false;
+  return allowedOrigins.has(normalizeOrigin(origin));
+}
+
+/**
+ * The CORS response headers to attach for an allowlisted origin, or null.
+ *
+ * A browser refuses to hand a cross-origin response to script unless the server
+ * says so, and a JSON POST from an extension is preflighted first. Passing the
+ * origin guard is therefore only half the job: without these headers the
+ * extension sees a CORS failure that looks like the server is down.
+ *
+ * Only the origin the user named is echoed back (never "*"), so enabling this
+ * for one extension does not open the API to every other origin on the machine.
+ * No `Access-Control-Allow-Credentials`: the extension is a bearer of the
+ * allowlist entry, not of the user's cookies.
+ */
+export function corsHeaders(origin, allowedOrigins) {
+  if (!isAllowedOrigin(origin, allowedOrigins)) return null;
+  return {
+    "Access-Control-Allow-Origin": normalizeOrigin(origin),
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "content-type",
+    "Access-Control-Max-Age": "600",
+    Vary: "Origin",
+  };
+}
+
 function block(reason) {
   return { ok: false, status: 403, reason };
 }

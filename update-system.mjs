@@ -507,6 +507,10 @@ const SYSTEM_PATHS = [
   'utils/token-tracker.mjs',
   'batch-tailor.mjs',
   'dashboard/',
+  // Chrome side-panel companion for the apply flow. System layer: it holds no
+  // candidate data (it reads the page, the local app drafts, the user approves),
+  // so an update can replace it wholesale like any other tool.
+  'extension/',
   'templates/',
   'config/cv-facts.example.json',
   'fonts/',

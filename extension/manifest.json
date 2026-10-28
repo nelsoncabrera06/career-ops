@@ -1,0 +1,44 @@
+{
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA5EST3fglh+aylTTmi4YxeG2wKY5F2dVIEonciDeeG7YekawsH5FsIfJUmTb1clpT/xrl2rdpeD+kn6i5u1YEr86fEz0LsXYTL034prRcjM2VOp7p5OynhqyVTezOS973hWhkCmDD6TzPZGH6+wKNo7b7apRl1WRFssxwxQU92iU5tKGemOchGKjt3f9+cBCGBMuR4IYjqOu8w4bRJ3HfyrxosR1nqvw7ZpGRDghfhDfCXhhvZsGk675j4ollrOsAxvV/9eaFdoblxAsefagEK7Mlsdeu7/xa3cNDmyK+YBbI3V/2w45QMqM1d+WRXSyUbKNdVKSmgs/u6bEE+Vv5pQIDAQAB",
+  "manifest_version": 3,
+  "name": "career-ops — aplicación asistida",
+  "version": "0.1.0",
+  "description": "Lee el formulario de la oferta que tienes abierta, redacta las respuestas con tu propio career-ops local y las rellena solo cuando tú lo apruebas. Nunca envía nada.",
+  "minimum_chrome_version": "116",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "sidePanel"
+  ],
+  "host_permissions": [
+    "http://localhost/*",
+    "http://127.0.0.1/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "career-ops — aplicación asistida",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "optional_host_permissions": [
+    "https://*/*",
+    "http://*/*"
+  ]
+}

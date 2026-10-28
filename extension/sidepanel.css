@@ -1,0 +1,425 @@
+/* sidepanel.css — same warm, low-chrome language as the dashboard, sized for a
+   narrow side panel. No framework, no build: this is a small surface and a
+   dependency would cost more than it saves. */
+
+:root {
+  --bg: #0f0e0c;
+  --surface: #171613;
+  --surface-2: #1e1c19;
+  --border: #2b2823;
+  --fg: #f5f2ec;
+  --muted: #a49c8f;
+  --faint: #6f675c;
+  --brand: #d9642a;
+  --brand-soft: rgba(217, 100, 42, 0.14);
+  --ok: #3f9d63;
+  --warn: #d9a02a;
+  --radius: 10px;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f7f6f3;
+    --surface: #ffffff;
+    --surface-2: #f1efea;
+    --border: #e0dcd3;
+    --fg: #1c1a16;
+    --muted: #6b6459;
+    --faint: #948b7d;
+    --brand-soft: rgba(217, 100, 42, 0.1);
+    color-scheme: light;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0 0 56px;
+  font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+  min-width: 320px;
+}
+
+h1 {
+  font-size: 15px;
+  margin: 0 0 4px;
+  letter-spacing: -0.01em;
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px;
+  background: var(--surface-2);
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+
+/* --- top bar ------------------------------------------------------------ */
+
+.bar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--faint);
+}
+
+.dot.on {
+  background: var(--ok);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 22%, transparent);
+}
+
+.dot.off {
+  background: #c2453a;
+}
+
+.status {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+/* --- controls ----------------------------------------------------------- */
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--fg);
+  padding: 7px 12px;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--muted);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+button.primary {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #1a1208;
+  font-weight: 600;
+}
+
+button.primary:hover:not(:disabled) {
+  background: #e5772f;
+  border-color: #e5772f;
+}
+
+button.ghost {
+  background: transparent;
+}
+
+button.link {
+  border: none;
+  background: none;
+  color: var(--muted);
+  padding: 0;
+  font-size: 11.5px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+button.icon {
+  border: none;
+  background: none;
+  padding: 2px 4px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+  width: 100%;
+  background: var(--surface);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: 2px solid color-mix(in srgb, var(--brand) 55%, transparent);
+  outline-offset: 1px;
+  border-color: var(--brand);
+}
+
+textarea {
+  resize: vertical;
+  min-height: 62px;
+  line-height: 1.45;
+}
+
+/* --- layout ------------------------------------------------------------- */
+
+main {
+  padding: 12px;
+}
+
+.intro p {
+  margin: 0 0 10px;
+  color: var(--muted);
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 10px 0;
+}
+
+.actions .primary {
+  flex: 1 1 auto;
+}
+
+.settings {
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: var(--muted);
+}
+
+.hint {
+  color: var(--faint);
+  font-size: 11.5px;
+  margin: 6px 0 10px;
+}
+
+.access {
+  border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent);
+  background: color-mix(in srgb, var(--warn) 9%, var(--surface));
+  border-radius: var(--radius);
+  padding: 10px;
+  margin: 0 0 12px;
+}
+
+.access strong {
+  display: block;
+  margin-bottom: 2px;
+}
+
+.access .actions {
+  margin: 8px 0 0;
+}
+
+.meta {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px;
+  background: var(--surface);
+}
+
+.meta-line {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  color: var(--muted);
+}
+
+.match summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
+  margin: 10px 0 0;
+}
+
+/* --- log ---------------------------------------------------------------- */
+
+.log {
+  margin: 10px 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.log-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 7px 10px;
+  font-size: 11.5px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.log pre {
+  margin: 0;
+  padding: 8px 10px;
+  max-height: 132px;
+  overflow: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--muted);
+  white-space: pre-wrap;
+}
+
+/* --- fields ------------------------------------------------------------- */
+
+.fields {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 9px 10px;
+}
+
+.field.off {
+  opacity: 0.6;
+}
+
+.field-head {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.field-head input[type="checkbox"] {
+  width: auto;
+  margin: 3px 0 0;
+  accent-color: var(--brand);
+  flex: 0 0 auto;
+}
+
+.field-label {
+  flex: 1;
+  font-weight: 550;
+  overflow-wrap: anywhere;
+}
+
+.tag {
+  flex: 0 0 auto;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--faint);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 6px;
+}
+
+.tag.warn {
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 45%, transparent);
+  background: color-mix(in srgb, var(--warn) 12%, transparent);
+}
+
+.tag.done {
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 45%, transparent);
+}
+
+.field textarea {
+  margin-top: 7px;
+  font-size: 12.5px;
+}
+
+.field-note {
+  margin-top: 5px;
+  font-size: 11.5px;
+  color: var(--warn);
+}
+
+/* --- fill bar / result -------------------------------------------------- */
+
+.fillbar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  margin-top: 12px;
+  background: linear-gradient(to top, var(--bg) 72%, transparent);
+}
+
+.fillbar .primary {
+  flex: 1;
+}
+
+.count {
+  color: var(--muted);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+.result {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px;
+  margin-top: 10px;
+  background: var(--surface);
+  font-size: 12px;
+}
+
+.result ul {
+  margin: 6px 0 0;
+  padding-left: 16px;
+  color: var(--muted);
+}
+
+footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 8px 12px;
+  font-size: 11px;
+  color: var(--faint);
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+}

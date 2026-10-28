@@ -41,9 +41,13 @@ ${fieldsList}
 
 For each field give the best answer:
 - identity/contact (name, email, phone, github, linkedin, location) → from profile/cv.
-- free-text (Why us?, cover-letter, "most impactful thing you've built", etc.) → a concise, honest, concrete answer in the candidate's own voice (no buzzwords, active voice, real metrics only). Keep each under ~120 words.
+- free-text (Why us?, cover-letter, "most impactful thing you've built", etc.) → a concise, honest, concrete answer in the candidate's own voice (no buzzwords, active voice, real metrics only). This is a DRAFTING task: always write it, and never leave it empty out of caution — the candidate edits and approves every answer before it reaches the form. Keep each under ~120 words.
 - select/radio → choose the best-matching option using the EXACT option text from the list.
-- NEVER fill legal / visa / work-authorization / salary / demographic / sensitive fields → set needs_confirmation:true and value:"".
+- language → answer in the language the question is written in (an English question gets an English answer). The profile's language.output setting governs the agent's own reports and notes, NOT the text typed into an application form.
+
+needs_confirmation — the carve-out, and its limit:
+- NEVER fill legal / visa / work-authorization / salary / demographic / sensitive fields → set needs_confirmation:true and value:"" . The candidate answers those, always.
+- Every OTHER field must get a draft. An empty value there is not caution, it is a blank field the candidate has to write from scratch — which is the whole job you were asked to do.
 
 Output ONLY a compact JSON object mapping each field id → {"value": "...", "needs_confirmation": boolean}. No prose, no markdown, no code fence.`;
 }
