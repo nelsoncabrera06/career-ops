@@ -48,6 +48,10 @@ export type ExploreFilters = {
    *  user's config (this module is client-safe and cannot read files). */
   portals: string[];
   limitPerAts: number;
+  /** One-shot "scan only my portals.yml boards" mode: skip the ATS datasets
+   *  entirely and run just the `scan.mjs` sweep. Set by the "Scan only your
+   *  portals" action, never by the ordinary Discover button. */
+  portalsOnly: boolean;
 };
 
 export const DEFAULT_FILTERS: ExploreFilters = {
@@ -61,6 +65,7 @@ export const DEFAULT_FILTERS: ExploreFilters = {
   ats: [...ATS_SOURCES],
   portals: [],
   limitPerAts: 150,
+  portalsOnly: false,
 };
 
 /** Banded title-vs-profile overlap (web/src/lib/title-fit.mjs). Words, not
@@ -189,6 +194,9 @@ export function parseExplorePatch(
   // Distinguish "absent" (keep the server seed / the restored base) from
   // "present but empty" (the user switched every portal off).
   if (raw.portals !== undefined) next.portals = cleanPortals(raw.portals);
+  // Absent keeps the base (an ordinary Discover run); only an explicit true
+  // turns the portals-only mode on.
+  if (raw.portalsOnly !== undefined) next.portalsOnly = raw.portalsOnly === true;
   return next;
 }
 
@@ -206,6 +214,8 @@ export function filtersToParams(f: ExploreFilters): string {
   // Encoded whenever it is on: the seed comes from the user's config, so an
   // empty default would make "on" and "unknown" indistinguishable on restore.
   if (f.portals.length) sp.set("portals", f.portals.join(","));
+  // portalsOnly is a one-shot action, not part of a shareable search — the
+  // ordinary Discover button must not inherit it from the URL.
   if (f.limitPerAts !== DEFAULT_FILTERS.limitPerAts) sp.set("limit", String(f.limitPerAts));
   return sp.toString();
 }

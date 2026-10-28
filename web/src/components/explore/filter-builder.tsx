@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { X, Ban, Clock, MapPin, ChevronDown, SlidersHorizontal, LayoutGrid } from "lucide-react";
+import { X, Ban, Clock, MapPin, ChevronDown, SlidersHorizontal, LayoutGrid, Radar } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { ATS_LABEL, ATS_SOURCES, cleanChips, type AtsSource, type ExploreFilters, type PortalBoard } from "@/lib/explore";
 
@@ -106,10 +106,14 @@ export function FilterBuilder({
   onChange,
   seededFrom = [],
   portalBoards = [],
+  onScanPortalsOnly,
 }: {
   filters: ExploreFilters;
   onChange: (f: ExploreFilters) => void;
   seededFrom?: string[];
+  /** Run a scan that skips every ATS dataset and walks only `portals.yml`.
+   *  Omitted when no portal boards are configured. */
+  onScanPortalsOnly?: () => void;
   /** `job_boards` the second engine can walk (see lib/core/portals-scan.ts).
    *  Empty when the user's portals.yml configures none — the ATS sweep then
    *  runs alone, which is also what an empty `filters.portals` means. */
@@ -215,6 +219,22 @@ export function FilterBuilder({
             <p className="mt-1 text-[11px] text-faint">
               The <code>job_boards</code> in your portals.yml — same scan.mjs the CLI runs, not an ATS dataset.
             </p>
+            {onScanPortalsOnly && (
+              <button
+                type="button"
+                onClick={onScanPortalsOnly}
+                disabled={filters.portals.length === 0}
+                title={
+                  filters.portals.length === 0
+                    ? "Enable at least one portal first"
+                    : "Skip the ATS datasets and scan only these boards"
+                }
+                className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-brand/40 bg-brand-soft px-3 py-1.5 text-xs font-medium text-brand transition-colors hover:border-brand disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Radar className="size-3.5" />
+                Scan only in your portals
+              </button>
+            )}
           </div>
         )}
 

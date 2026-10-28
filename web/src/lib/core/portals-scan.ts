@@ -67,13 +67,15 @@ function cleanupTemp(file: string): void {
 }
 
 /**
- * Run one `scan.mjs` child over the selected boards, stopped after `timeoutMs`,
- * streaming what it found into `sink`.
+ * Run `scan.mjs` over the selected boards, ONE CHILD PER BOARD in parallel,
+ * each stopped after `timeoutMs`, streaming what they found into `sink`.
  *
- * `scan.mjs` emits its offers once, in the receipt at the end of the run (its
- * `New offers:` block is the same data in human form), so this cannot stream
- * row-by-row the way the ATS sweep does; the start/done events keep the source
- * visible as active instead of looking stalled.
+ * One child for every board used to lose the whole sweep to its slowest board:
+ * `scan.mjs` emits its offers only in the receipt at the end, so a single board
+ * that outlasted the deadline (FullStack Labs walks ~100 pages and can take
+ * 5-6 minutes) took every other board's results with it. Per-board children
+ * bound each board separately, so a slow or broken board is named as incomplete
+ * while the others still deliver their offers.
  */
 export function runPortalsSweep(
   filters: ExploreFilters,
@@ -100,124 +102,134 @@ export function runPortalsSweep(
     return Promise.resolve({ offers: [], boards: 0, incomplete: false });
   }
 
-  const config = buildSweepConfig(doc as Record<string, unknown>, filters, filters.portals);
-  const boards = Array.isArray(config.job_boards) ? config.job_boards.length : 0;
-  if (boards === 0) {
+  const base = buildSweepConfig(doc as Record<string, unknown>, filters, filters.portals);
+  const selected = Array.isArray(base.job_boards)
+    ? base.job_boards.filter((b): b is { name: string } => !!b && typeof b.name === "string")
+    : [];
+  if (selected.length === 0) {
     // Nothing selected survives in the config (a board renamed, or every
     // selected entry disabled since the page was rendered) — say so, don't scan.
     return Promise.resolve({ offers: [], boards: 0, incomplete: false });
   }
 
-  const temp = path.join(os.tmpdir(), `career-ops-explore-sweep-${randomUUID()}.yml`);
-  try {
-    fs.writeFileSync(temp, yaml.dump(config, { lineWidth: 120 }), "utf8");
-  } catch {
-    return Promise.resolve({ offers: [], boards: 0, incomplete: false });
-  }
-
   return new Promise<PortalsSweepResult>((resolve) => {
-    const args = [
-      scanScript,
-      "--dry-run",
-      "--json",
-      "--quiet",
-      "--since",
-      String(Math.max(1, filters.sinceDays || 7)),
-    ];
-    const child = spawn(process.execPath, args, {
-      cwd: careerOpsRoot(),
-      env: { ...process.env, CAREER_OPS_PORTALS: temp },
-    });
+    const seconds = String(Math.max(1, filters.sinceDays || 7));
+    const failures: string[] = [];
+    const out: DiscoveredOffer[] = [];
+    let remaining = selected.length;
 
-    let outBuf = "";
-    let timedOut = false;
-    let settled = false;
-    let hardKiller: ReturnType<typeof setTimeout> | undefined;
+    onEvent({ kind: "atsStart", ats: "portals", companies: selected.length });
 
-    const settle = (res: PortalsSweepResult) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(killer);
-      if (hardKiller) clearTimeout(hardKiller);
-      cleanupTemp(temp);
-      resolve(res);
+    const settleOne = () => {
+      remaining -= 1;
+      if (remaining > 0) return;
+      onEvent({ kind: "atsDone", ats: "portals", unreachable: failures.length });
+      resolve({
+        offers: out,
+        boards: selected.length,
+        incomplete: failures.length > 0,
+        error: failures.length ? failures.join("; ") : undefined,
+      });
     };
 
-    const killer = setTimeout(() => {
-      timedOut = true;
+    for (const board of selected) {
+      // Each child gets a config with just its own board, so one board's
+      // deadline cannot consume another's.
+      const config = buildSweepConfig(doc as Record<string, unknown>, filters, [board.name]);
+      const temp = path.join(os.tmpdir(), `career-ops-explore-sweep-${randomUUID()}.yml`);
       try {
-        child.kill("SIGTERM");
+        fs.writeFileSync(temp, yaml.dump(config, { lineWidth: 120 }), "utf8");
       } catch {
-        /* ignore */
+        failures.push(`${board.name}: could not write a scan config`);
+        settleOne();
+        continue;
       }
-      hardKiller = setTimeout(() => {
+
+      const child = spawn(
+        process.execPath,
+        [scanScript, "--dry-run", "--json", "--quiet", "--since", seconds],
+        { cwd: careerOpsRoot(), env: { ...process.env, CAREER_OPS_PORTALS: temp } },
+      );
+
+      let outBuf = "";
+      let timedOut = false;
+      let hardKiller: ReturnType<typeof setTimeout> | undefined;
+      let settled = false;
+
+      const settle = (error?: string) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(killer);
+        if (hardKiller) clearTimeout(hardKiller);
+        cleanupTemp(temp);
+        if (error) failures.push(error);
+        settleOne();
+      };
+
+      const killer = setTimeout(() => {
+        timedOut = true;
         try {
-          child.kill("SIGKILL");
+          child.kill("SIGTERM");
         } catch {
           /* ignore */
         }
-      }, 5_000);
-    }, timeoutMs);
+        hardKiller = setTimeout(() => {
+          try {
+            child.kill("SIGKILL");
+          } catch {
+            /* ignore */
+          }
+        }, 5_000);
+      }, timeoutMs);
 
-    onEvent({ kind: "atsStart", ats: "portals", companies: boards });
+      child.stdout?.on("data", (d: Buffer) => {
+        outBuf += d.toString();
+      });
+      child.on("error", (e) => {
+        settle(`${board.name}: ${e instanceof Error ? e.message : "failed to start"}`);
+      });
+      child.on("close", () => {
+        const receipt = parseSweepReceipt(outBuf) as Parameters<typeof receiptOffers>[0];
+        if (!receipt) {
+          settle(timedOut ? `${board.name} timed out before finishing` : `${board.name}: no readable result`);
+          return;
+        }
 
-    child.stdout?.on("data", (d: Buffer) => {
-      outBuf += d.toString();
-    });
-    child.on("error", (e) => {
-      const message = e instanceof Error ? e.message : "unknown error";
-      onEvent({ kind: "atsDone", ats: "portals", unreachable: 0 });
-      settle({ offers: [], boards, incomplete: true, error: message });
-    });
-    child.on("close", () => {
-      const receipt = parseSweepReceipt(outBuf) as Parameters<typeof receiptOffers>[0];
-      if (!receipt) {
-        onEvent({ kind: "atsDone", ats: "portals", unreachable: 0 });
-        settle({
-          offers: [],
-          boards,
-          incomplete: true,
-          error: timedOut ? "timed out before finishing" : "no readable result",
-        });
-        return;
-      }
-
-      const out: DiscoveredOffer[] = [];
-      for (const r of receiptOffers(receipt) as {
-        url: string;
-        company: string;
-        title: string;
-        location: string;
-        source: string;
-        postedAt: string;
-      }[]) {
-        if (sink.seen.has(r.url)) continue; // already surfaced by the ATS sweep
-        sink.seen.add(r.url);
-        // sweepAnnotations lives in a plain-JS module (portals-sweep.mjs), so its
-        // inferred return type widens `fit.band` to string. titleFit() only ever
-        // returns a FitBand, so state that here rather than narrowing per call.
-        const ann = sweepAnnotations(r.title, filters.positive, roleTargets) as {
-          matchedKeyword?: string;
-          fit?: { band: FitBand; score: number };
-        };
-        const offer: DiscoveredOffer = {
-          company: r.company,
-          title: r.title,
-          location: r.location,
-          postedAt: r.postedAt,
-          // The board label doubles as the badge: "Computrabajo Argentina" reads
-          // as the source it came from, not as a generic "portals".
-          ats: r.source,
-          source: r.source,
-          url: r.url,
-          ...ann,
-        };
-        out.push(offer);
-        sink.offers.push(offer);
-        onEvent({ kind: "offer", offer });
-      }
-      onEvent({ kind: "atsDone", ats: "portals", unreachable: 0 });
-      settle({ offers: out, boards, incomplete: timedOut, error: timedOut ? "timed out before finishing" : undefined });
-    });
+        for (const r of receiptOffers(receipt) as {
+          url: string;
+          company: string;
+          title: string;
+          location: string;
+          source: string;
+          postedAt: string;
+        }[]) {
+          if (sink.seen.has(r.url)) continue; // already surfaced by another board or the ATS sweep
+          sink.seen.add(r.url);
+          // sweepAnnotations lives in a plain-JS module (portals-sweep.mjs), so its
+          // inferred return type widens `fit.band` to string. titleFit() only ever
+          // returns a FitBand, so state that here rather than narrowing per call.
+          const ann = sweepAnnotations(r.title, filters.positive, roleTargets) as {
+            matchedKeyword?: string;
+            fit?: { band: FitBand; score: number };
+          };
+          const offer: DiscoveredOffer = {
+            company: r.company,
+            title: r.title,
+            location: r.location,
+            postedAt: r.postedAt,
+            // The board label doubles as the badge: "Computrabajo Argentina" reads
+            // as the source it came from, not as a generic "portals".
+            ats: r.source,
+            source: r.source,
+            url: r.url,
+            ...ann,
+          };
+          out.push(offer);
+          sink.offers.push(offer);
+          onEvent({ kind: "offer", offer });
+        }
+        settle(timedOut ? `${board.name} timed out before finishing` : undefined);
+      });
+    }
   });
 }

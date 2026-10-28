@@ -42,7 +42,7 @@ export function ExplorerView({
   appsSnapshot: Application[];
   rootExists: boolean;
 }) {
-  const { filters, setFilters, initFilters, phase, running, offers, discover, loadFresh, status, error, scannerMissing, mode, setMode, aiIntent, setAiIntent, discoverAI, companiesScanned, companiesAvailable, capHit, droppedNoDate, partial } = useExplore();
+  const { filters, setFilters, initFilters, phase, running, offers, discover, loadFresh, status, error, scannerMissing, portalsOnly, mode, setMode, aiIntent, setAiIntent, discoverAI, companiesScanned, companiesAvailable, capHit, droppedNoDate, partial } = useExplore();
   const scanNote =
     companiesScanned > 0
       ? `Scanned ${companiesScanned.toLocaleString()}${companiesAvailable > companiesScanned ? ` of ${companiesAvailable.toLocaleString()}` : ""} compan${companiesScanned === 1 ? "y" : "ies"}${partial ? " · some sources were unreachable" : ""}.`
@@ -188,14 +188,26 @@ export function ExplorerView({
               </button>
               {refineOpen && (
                 <div className="space-y-4 border-t border-border p-4">
-                  <FilterBuilder filters={filters} onChange={setFilters} seededFrom={seed.seededFrom} portalBoards={portalBoards} />
+                  <FilterBuilder
+                    filters={filters}
+                    onChange={setFilters}
+                    seededFrom={seed.seededFrom}
+                    portalBoards={portalBoards}
+                    onScanPortalsOnly={() => void discover({ portalsOnly: true })}
+                  />
                   <DiscoverBar canDiscover={canDiscover} onDiscover={discover} label="Re-cast (free)" />
                 </div>
               )}
             </div>
           ) : (
             <div className="mb-6 rounded-2xl border border-border bg-surface/30 p-5">
-              <FilterBuilder filters={filters} onChange={setFilters} seededFrom={seed.seededFrom} portalBoards={portalBoards} />
+              <FilterBuilder
+                filters={filters}
+                onChange={setFilters}
+                seededFrom={seed.seededFrom}
+                portalBoards={portalBoards}
+                onScanPortalsOnly={() => void discover({ portalsOnly: true })}
+              />
               <div className="mt-5">
                 <DiscoverBar canDiscover={canDiscover} onDiscover={discover} label="Discover (free)" />
               </div>
@@ -261,6 +273,7 @@ export function ExplorerView({
               capHit={capHit}
               droppedNoDate={droppedNoDate}
               partial={partial}
+              portalsOnly={portalsOnly}
             />
           )}
           {phase === "failed" && <FailedCard msg={error || status} scannerMissing={scannerMissing} onRetry={() => void discover()} />}
@@ -312,6 +325,7 @@ function DegradedCard({
   capHit,
   droppedNoDate,
   partial,
+  portalsOnly,
 }: {
   onRetry: () => void;
   companiesScanned: number;
@@ -319,6 +333,7 @@ function DegradedCard({
   capHit: boolean;
   droppedNoDate: number;
   partial: boolean;
+  portalsOnly: boolean;
 }) {
   // 0 results, but the scan was NOT a clean full search → never "all caught up".
   // Pick the most informative reason (authoritative when the scanner's --json mode
@@ -326,7 +341,11 @@ function DegradedCard({
   let title = "The scan ran, but couldn’t reach any sources.";
   let body =
     "The public ATS directories didn’t respond — usually a transient network hiccup or rate-limit, so nothing could be searched. This isn’t “all caught up”; a retry in a moment usually clears it.";
-  if (companiesScanned > 0 && capHit) {
+  if (portalsOnly) {
+    title = "Some of your portals didn’t finish.";
+    body =
+      "One or more portals.yml boards timed out or returned no readable result, so this is a partial scan — not “all caught up”. A board that walks many pages (FullStack Labs can take 5-6 minutes) is the usual culprit: lower its max_pages or switch it off in Portals, then retry.";
+  } else if (companiesScanned > 0 && capHit) {
     title = "No matches in the slice we searched.";
     body = `The scan is capped, so it only searched ${companiesScanned.toLocaleString()}${companiesAvailable > companiesScanned ? ` of ${companiesAvailable.toLocaleString()}` : ""} companies — not the whole network. Raise scan depth (Refine search) or narrow your roles, then re-cast to look deeper.`;
   } else if (companiesScanned > 0 && droppedNoDate > 0) {

@@ -45,7 +45,7 @@ export function useCountUp(target: number): number {
   return Math.round(val);
 }
 
-function SourceChip({ ats, s }: { ats: AtsSource; s?: SourceState }) {
+function SourceChip({ label, s }: { label: string; s?: SourceState }) {
   const state = s?.state ?? "queued";
   const pct = s?.total ? Math.min(100, Math.round(((s.done ?? 0) / s.total) * 100)) : state === "swept" || state === "noisy" ? 100 : 0;
   return (
@@ -57,7 +57,7 @@ function SourceChip({ ats, s }: { ats: AtsSource; s?: SourceState }) {
       ) : (
         <span className="size-2.5 rounded-full border border-current opacity-40" />
       )}
-      <span className="text-[13px] font-medium text-foreground">{ATS_LABEL[ats]}</span>
+      <span className="text-[13px] font-medium text-foreground">{label}</span>
       <div className="ml-auto flex flex-col items-end gap-1">
         {state === "noisy" && <span className="text-[10px] text-faint">~{s?.unreachable} skipped</span>}
         <div className="co-src__track">
@@ -69,7 +69,7 @@ function SourceChip({ ats, s }: { ats: AtsSource; s?: SourceState }) {
 }
 
 export function DiscoveringState() {
-  const { sources, matchCount, companiesScanned, status, phase } = useExplore();
+  const { sources, portalsOnly, matchCount, companiesScanned, status, phase } = useExplore();
   const shown = useCountUp(matchCount);
   const companies = useCountUp(companiesScanned);
 
@@ -92,14 +92,16 @@ export function DiscoveringState() {
         </div>
 
         <div className="co-src">
-          {ATS_SOURCES.map((a) => (
-            <SourceChip key={a} ats={a} s={sources[a]} />
-          ))}
+          {portalsOnly ? (
+            <SourceChip label="Your portals" s={(sources as Record<string, SourceState | undefined>).portals} />
+          ) : (
+            ATS_SOURCES.map((a) => <SourceChip key={a} label={ATS_LABEL[a]} s={sources[a]} />)
+          )}
         </div>
 
         <p className="flex items-center gap-2 text-[13px] text-faint">
           <Loader2 className="size-3.5 animate-spin" />
-          {status || "Casting the net across the ATS network…"}
+          {status || (portalsOnly ? "Walking your portals.yml boards…" : "Casting the net across the ATS network…")}
         </p>
       </div>
     </>

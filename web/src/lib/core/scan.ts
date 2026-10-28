@@ -382,7 +382,19 @@ const NO_OUTPUT = "The scanner returned no readable output.";
 
 export async function runDiscovery(filters: ExploreFilters, onEvent: (e: ScanEvent) => void): Promise<DiscoveredOffer[]> {
   const tempPortals = writeTempPortals(filters);
-  const ats = (filters.ats.length ? filters.ats : [...ATS_SOURCES]).filter((a) => (ATS_SOURCES as readonly string[]).includes(a));
+  // Portals-only is the "skip the foreign ATS network" mode: no ATS child is
+  // spawned, only the user's own job_boards through scan.mjs. An empty ATS list
+  // would otherwise mean "every ATS" (filters.ats.length === 0 is the legacy
+  // default), so this has to be an explicit flag, not an empty list.
+  const portalsOnly = filters.portalsOnly === true;
+  if (portalsOnly && filters.portals.length === 0) {
+    onEvent({ kind: "error", message: "Pick at least one portal in Your portals, then scan again." });
+    cleanupTempPortals(tempPortals);
+    return [];
+  }
+  const ats = portalsOnly
+    ? []
+    : (filters.ats.length ? filters.ats : [...ATS_SOURCES]).filter((a) => (ATS_SOURCES as readonly string[]).includes(a));
   const useJson = scannerSupportsJson();
   // Read once per run: every child gets the same budget, and the copy quotes it
   // exactly (a 1.5s budget must not read as 2s).
@@ -399,6 +411,32 @@ export async function runDiscovery(filters: ExploreFilters, onEvent: (e: ScanEve
     // user's own portals.yml boards, and running them in parallel keeps the
     // whole Fresh scan inside one budget instead of two.
     const sweepPromise = runPortalsSweep(filters, onEvent, sink, timeoutMs, roleTargets);
+
+    if (portalsOnly) {
+      // No source finishes before the sweep does, so await it and report its
+      // outcome as the whole run. `boards === 0` means no selected name survived
+      // in portals.yml (renamed or disabled since the page rendered).
+      const sweep = await sweepPromise;
+      if (sweep.boards === 0) {
+        onEvent({ kind: "error", message: "No selected portal is available in portals.yml right now." });
+        return sink.offers;
+      }
+      if (sweep.incomplete) {
+        onEvent({
+          kind: "log",
+          line:
+            `Your portals.yml sweep (${sourceLabel(PORTALS_SOURCE)}) didn't finish` +
+            `${sweep.error ? ` — ${sweep.error}` : ""}, so its results are incomplete. ` +
+            `It runs one board at a time; try a shorter date range or raise scan.timeout_seconds in config/profile.yml.`,
+        });
+      }
+      onEvent({
+        kind: "summary",
+        ...mergeScanResults([], sink.offers.length),
+        ...(sweep.incomplete ? { incomplete: [PORTALS_SOURCE] } : {}),
+      });
+      return sink.offers;
+    }
 
     if (!useJson) {
       // Older checkouts: one child, human-stdout parse. It streams offers as they

@@ -64,7 +64,10 @@ type ExploreCtx = {
   scannerMissing: boolean;
   added: Set<string>;
   adding: Set<string>;
-  discover: () => Promise<void>;
+  /** True while the active/last scan skipped every ATS dataset and walked only
+   *  the user's portals.yml boards — drives the discovering-state chips. */
+  portalsOnly: boolean;
+  discover: (opts?: { portalsOnly?: boolean }) => Promise<void>;
   /** Load the SUPPLY-loop offers Today's "Fresh matches this week" already
    *  fetched from /api/whats-new, straight into the results phase — no scan. */
   loadFresh: () => Promise<void>;
@@ -107,6 +110,7 @@ type ResultSnapshot = {
   status: string;
   error: string;
   scannerMissing: boolean;
+  portalsOnly: boolean;
   added: string[];
   aiTrace: AiTraceChunk[];
   aiCost: AiCost;
@@ -131,6 +135,7 @@ export function ExploreProvider({ children }: { children: React.ReactNode }) {
   const [partial, setPartial] = useState(false);
   const [error, setError] = useState("");
   const [scannerMissing, setScannerMissing] = useState(false);
+  const [portalsOnly, setPortalsOnly] = useState(false);
   const [added, setAdded] = useState<Set<string>>(new Set());
   const [adding, setAdding] = useState<Set<string>>(new Set());
   const [mode, setModeState] = useState<ExploreMode>("scan");
@@ -154,10 +159,13 @@ export function ExploreProvider({ children }: { children: React.ReactNode }) {
     setFiltersState(f);
   }, []);
 
-  const discover = useCallback(async () => {
+  const discover = useCallback(async (opts?: { portalsOnly?: boolean }) => {
     if (runningRef.current) return;
-    const f = filtersRef.current;
+    // An explicit action wins; otherwise a restored ?po=1 search keeps its mode.
+    const onlyPortals = opts?.portalsOnly ?? filtersRef.current.portalsOnly;
+    const f = onlyPortals ? { ...filtersRef.current, portalsOnly: true } : filtersRef.current;
     runningRef.current = true;
+    setPortalsOnly(onlyPortals);
     setPhase("casting");
     setOffers([]);
     setMatchCount(0);
@@ -168,9 +176,10 @@ export function ExploreProvider({ children }: { children: React.ReactNode }) {
     setPartial(false);
     setError("");
     setScannerMissing(false);
-    setStatus("Casting the net across the ATS network…");
+    setStatus(onlyPortals ? "Walking your portals.yml boards…" : "Casting the net across the ATS network…");
     const init: Partial<Record<AtsSource, SourceState>> = {};
-    for (const a of f.ats) init[a] = { state: "queued" };
+    if (onlyPortals) (init as Record<string, SourceState>).portals = { state: "queued" };
+    else for (const a of f.ats) init[a] = { state: "queued" };
     setSources(init);
     if (typeof window !== "undefined") {
       const qs = filtersToParams(f);
@@ -296,7 +305,7 @@ export function ExploreProvider({ children }: { children: React.ReactNode }) {
       setError(sawError);
       setScannerMissing(sawScannerMissing);
       setPhase("failed");
-    } else if (capHitAcc || datasetIssueAcc || droppedNoDateAcc > 0 || companiesScannedAcc === 0) {
+    } else if (capHitAcc || datasetIssueAcc || droppedNoDateAcc > 0 || (!onlyPortals && companiesScannedAcc === 0)) {
       // Maintainer's RULE (#1199): it is NOT "all caught up" if the scan was capped,
       // a dataset was stale/unreachable, postings were dropped for missing a date, OR
       // nothing was searched at all (legacy 0-companies fallback when --json is absent).
@@ -406,6 +415,7 @@ export function ExploreProvider({ children }: { children: React.ReactNode }) {
     setPartial(false);
     setError("");
     setScannerMissing(false);
+    setPortalsOnly(false);
     setAiTrace([]);
     setAiCost({ searches: 0, candidates: 0, fetches: 0 });
     try {
@@ -556,6 +566,7 @@ export function ExploreProvider({ children }: { children: React.ReactNode }) {
     setStatus(typeof snap.status === "string" ? snap.status : "");
     setError(typeof snap.error === "string" ? snap.error : "");
     setScannerMissing(!!snap.scannerMissing);
+    setPortalsOnly(snap.portalsOnly === true);
     setAdded(new Set(Array.isArray(snap.added) ? snap.added : []));
     setAiTrace(Array.isArray(snap.aiTrace) ? snap.aiTrace : []);
     setAiCost(snap.aiCost ?? { searches: 0, candidates: 0, fetches: 0 });
@@ -572,23 +583,23 @@ export function ExploreProvider({ children }: { children: React.ReactNode }) {
     try {
       const snap: ResultSnapshot = {
         v: 1, mode, phase, offers, matchCount, companiesScanned, companiesAvailable, capHit, droppedNoDate, sources,
-        partial, status, error, scannerMissing, added: [...added], aiTrace, aiCost, aiIntent,
+        partial, status, error, scannerMissing, portalsOnly, added: [...added], aiTrace, aiCost, aiIntent,
       };
       sessionStorage.setItem(RESULTS_KEY, JSON.stringify(snap));
     } catch {
       /* sessionStorage full/unavailable — non-fatal */
     }
-  }, [phase, mode, offers, matchCount, companiesScanned, companiesAvailable, capHit, droppedNoDate, sources, partial, status, error, scannerMissing, added, aiTrace, aiCost, aiIntent]);
+  }, [phase, mode, offers, matchCount, companiesScanned, companiesAvailable, capHit, droppedNoDate, sources, partial, status, error, scannerMissing, portalsOnly, added, aiTrace, aiCost, aiIntent]);
 
   const value = useMemo(
     () => ({
       filters, setFilters, initFilters, phase,
       running: phase === "casting" || phase === "scanning" || phase === "revealing" || phase === "hunting",
-      offers, sources, matchCount, companiesScanned, companiesAvailable, capHit, droppedNoDate, status, partial, error, scannerMissing, added, adding,
+      offers, sources, matchCount, companiesScanned, companiesAvailable, capHit, droppedNoDate, status, partial, error, scannerMissing, portalsOnly, added, adding,
       discover, loadFresh, addToPipeline, applyPatch, reset,
       mode, setMode, aiIntent, setAiIntent, discoverAI, aiTrace, aiCost,
     }),
-    [filters, setFilters, initFilters, phase, offers, sources, matchCount, companiesScanned, companiesAvailable, capHit, droppedNoDate, status, partial, error, scannerMissing, added, adding, discover, loadFresh, addToPipeline, applyPatch, reset, mode, setMode, aiIntent, discoverAI, aiTrace, aiCost],
+    [filters, setFilters, initFilters, phase, offers, sources, matchCount, companiesScanned, companiesAvailable, capHit, droppedNoDate, status, partial, error, scannerMissing, portalsOnly, added, adding, discover, loadFresh, addToPipeline, applyPatch, reset, mode, setMode, aiIntent, discoverAI, aiTrace, aiCost],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

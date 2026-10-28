@@ -24,7 +24,9 @@ export async function POST(req: NextRequest) {
   // Guard: a data-only checkout (or pre-onboarding) has no scanner. Fail soft.
   // The body carries an explicit code because 400 is a shared channel: the
   // client cannot tell this apart from a malformed request by status alone.
-  if (!fs.existsSync(rootScript("scan-ats-full"))) {
+  // A portals-only run needs scan.mjs, not the reverse-ATS dataset scanner.
+  const scannerScript = filters.portalsOnly ? rootScript("scan") : rootScript("scan-ats-full");
+  if (!fs.existsSync(scannerScript)) {
     return Response.json(scannerMissingBody(), { status: SCANNER_MISSING_STATUS });
   }
 
@@ -38,7 +40,13 @@ export async function POST(req: NextRequest) {
           /* stream closed */
         }
       };
-      send({ kind: "start", ats: filters.ats, sinceDays: filters.sinceDays, limit: filters.limitPerAts, free: true } satisfies ScanEvent);
+      send({
+        kind: "start",
+        ats: filters.portalsOnly ? ["portals"] : filters.ats,
+        sinceDays: filters.sinceDays,
+        limit: filters.limitPerAts,
+        free: true,
+      } satisfies ScanEvent);
       let offers: DiscoveredOffer[] = [];
       try {
         offers = await runDiscovery(filters, (e: ScanEvent) => send(e));
