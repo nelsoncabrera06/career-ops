@@ -95,6 +95,53 @@ location:
   # For remote roles outside your country:
   # onsite_availability: "1 week/month in any city"
 
+# Facts a job search needs that never belong on a CV. Also editable from the web
+# app: CV → "My data" (which writes them here, into one managed block at the end
+# of the file, without touching the comments in the rest of it).
+#
+# Never fabricated, never guessed: an absent key means "unknown", and every mode
+# treats it that way. They are CONTEXT for judging offers, answering forms and
+# anchoring negotiation — not CV lines.
+#
+# Discretion boundary (do not relax): `compensation.*` and the EEO answers under
+# `personal.*` are recorded so the candidate never has to look them up twice, but
+# they are still NEVER auto-filled into an application form. web/src/lib/apply/
+# answer-prompt.mjs refuses salary/legal/demographic questions, and the extension
+# leaves those fields for the candidate. Storing a fact is not consent to submit it.
+personal:
+  # Optional, all of it. Age gates, some regional forms, eligibility rules.
+  # birth_date: "1990-01-31"   # YYYY-MM-DD
+  # nationality: "Argentine"
+  # pronouns: "she/her"
+  # document_id: ""            # DNI / passport — typed only into a form you approve
+  # gender: ""                 # EEO answer, never auto-submitted
+  # disability: ""
+  # veteran: ""
+  # Free-form background the agent should know but a CV must not claim:
+  # constraints, context behind a gap, hard refusals.
+  # notes: ""
+
+# What you can say yes to, and when.
+# availability:
+#   earliest_start: "immediately"    # or "2026-11-01", "1 month after offer"
+#   notice_period_days: 0
+#   work_mode: "remote"              # remote | hybrid | onsite | flexible | any
+#   # Preference and constraint are different facts. This flag means "the
+#   # preference above is not a filter" — an office-only role is then a
+#   # preference not met, not a mismatch to discard. Omit → false (unknown).
+#   accepts_any_work_mode: true
+#   relocate: "maybe"                # no | maybe | yes
+#   relocate_to: "anywhere in LATAM"
+#   travel_percent: "up to 10%"
+
+# Languages with the level you can actually defend. Forms that ask
+# "Spanish — fluent?" then get a consistent answer.
+# languages:
+#   - language: "Spanish"
+#     level: "Native"
+#   - language: "English"
+#     level: "C1"
+
 # Optional. Only read by the Singapore market mode (modes/sg/): your work
 # status there. One of: citizen | pr | pass-holder | foreign. Omit → the mode
 # treats you as foreign (Employment Pass sponsorship required) and says so.
