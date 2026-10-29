@@ -157,10 +157,11 @@ const GENERIC_FATAL_STDERR_RE =
  * directly (`<<offer:>>`/`<<cv:>>` envelopes, the apply planners' JSON array).
  *
  * @param {string} prompt
+ * @param {string|null} [model] from the run-model policy; omitted → codex's own default
  * @returns {string[]}
  */
-export function codexStreamArgs(prompt) {
-  return ["exec", "--json", "--color", "never", prompt];
+export function codexStreamArgs(prompt, model) {
+  return ["exec", "--json", "--color", "never", ...(model ? ["-m", model] : []), prompt];
 }
 
 /**

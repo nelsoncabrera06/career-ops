@@ -114,9 +114,51 @@ function fillCliSelect() {
     opt.textContent = cli.name;
     sel.append(opt);
   }
-  const keep = state.clis.some((c) => c.id === state.cliId) ? state.cliId : state.clis[0].id;
+  // With nothing saved, do NOT take `clis[0]` blindly: /api/clis returns them in
+  // the app's display order, where opencode sits ahead of pi — and opencode is
+  // the runtime whose unpinned default billed a paid OpenRouter model here. Pi
+  // is preferred instead because its model is pinned in the user's own
+  // settings and is cheap; anything else falls back to the first installed.
+  const preferred = state.clis.find((c) => c.id === "pi")?.id;
+  const keep = state.clis.some((c) => c.id === state.cliId)
+    ? state.cliId
+    : preferred || state.clis[0].id;
   state.cliId = keep;
   sel.value = keep;
+  showModelHint(keep);
+}
+
+/**
+ * The model behind the selected CLI, in the settings block.
+ *
+ * The CLI name alone cannot answer "what will this cost": `Pi` and `OpenCode`
+ * look the same in a picker, and OpenCode with no model pinned once billed a
+ * paid OpenRouter default here (~$0.90 for five forms). /api/clis resolves the
+ * model with the same policy the drafting route applies, so this is a preview
+ * of the real run — and it updates the moment the selection changes.
+ *
+ * @param {string} cliId
+ */
+function showModelHint(cliId) {
+  const el = $("modelHint");
+  if (!el) return;
+  const cli = state.clis.find((c) => c.id === cliId);
+  if (!cli) {
+    el.textContent = "";
+    return;
+  }
+  if (cli.modelError) {
+    el.textContent = `⚠️ ${cli.name}: sin modelo — ${cli.modelError}`;
+    return;
+  }
+  // `label` is rendered by the app from cli-model.mjs ("Pi · <model>"), so the
+  // paid marker is decided in ONE place: it is suppressed for the user's own pi
+  // pin, which bills but is expected. Re-deriving it here would flag every
+  // normal chat turn and train the user to ignore the warning — so read the
+  // marker OFF that label instead of recomputing it.
+  const marked = typeof cli.label === "string" && cli.label.includes("(paid)");
+  el.textContent = `Modelo: ${cli.model || "por defecto del CLI"}${marked ? " · ⚠️ de pago" : ""}`;
+  el.title = cli.label || "";
 }
 
 // -------------------------------------------------------------------- log
@@ -229,7 +271,19 @@ async function draft() {
       throw new Error(body.error || `la app respondió ${res.status}`);
     }
 
+    // Who is drafting, and with which model — in the status line AND the log,
+    // before any answer arrives. Two runs can look identical here and cost 20x
+    // apart; this is the only place that difference is visible before the user
+    // approves anything.
+    const showBadge = (evt) => {
+      const who = evt.cliName || evt.cliId || "CLI";
+      const model = evt.model || "modelo por defecto del CLI";
+      setStatus(`${who} · ${model}${evt.paid ? " · ⚠️ pago" : ""}`, evt.paid ? "warn" : "on");
+      logLine(`🤖 ${who} · ${model}${evt.paid ? " · ⚠️ pago" : ""}`);
+    };
+
     await readNdjson(res, (evt) => {
+      if (evt.t === "run") return showBadge(evt);
       if (evt.t === "log") logLine(evt.m);
       if (evt.t === "error") throw new Error(evt.m);
       if (evt.t === "done") applyAnswers(evt.answers, evt.truncated);
@@ -507,6 +561,7 @@ $("serverUrl").addEventListener("change", async (e) => {
 
 $("cliSelect").addEventListener("change", async (e) => {
   state.cliId = e.target.value;
+  showModelHint(state.cliId);
   await saveSettings();
 });
 

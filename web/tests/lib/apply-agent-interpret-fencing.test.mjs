@@ -77,13 +77,24 @@ function withStubClaude(t) {
   const bin = path.join(dir, "claude");
   fs.writeFileSync(bin, `#!/bin/sh\necho launched >> "${log}"\necho "no json here"\n`);
   fs.chmodSync(bin, 0o755);
-  const saved = { PATH: process.env.PATH, CAREER_OPS_ROOT: process.env.CAREER_OPS_ROOT };
+  const saved = {
+    PATH: process.env.PATH,
+    CAREER_OPS_ROOT: process.env.CAREER_OPS_ROOT,
+    CAREER_OPS_MODEL_CLAUDE: process.env.CAREER_OPS_MODEL_CLAUDE,
+  };
   process.env.PATH = dir;
   process.env.CAREER_OPS_ROOT = dir;
+  // claude cannot be pinned without an explicit model (cli-model.mjs refuses an
+  // unpinned run), so a test that wants a LAUNCH has to say which model — the
+  // same thing an operator would do. Without this the interpreter stops before
+  // spawning and these tests measure model policy instead of fencing.
+  process.env.CAREER_OPS_MODEL_CLAUDE = "claude-haiku-4-5";
   t.after(() => {
     process.env.PATH = saved.PATH;
     if (saved.CAREER_OPS_ROOT === undefined) delete process.env.CAREER_OPS_ROOT;
     else process.env.CAREER_OPS_ROOT = saved.CAREER_OPS_ROOT;
+    if (saved.CAREER_OPS_MODEL_CLAUDE === undefined) delete process.env.CAREER_OPS_MODEL_CLAUDE;
+    else process.env.CAREER_OPS_MODEL_CLAUDE = saved.CAREER_OPS_MODEL_CLAUDE;
     fs.rmSync(dir, { recursive: true, force: true });
   });
   return { launches: () => (fs.existsSync(log) ? fs.readFileSync(log, "utf8").trim().split("\n").filter(Boolean).length : 0) };

@@ -1,6 +1,6 @@
 import { spawnHeadlessCli } from "@/lib/spawn-cli.mjs";
 import { CAPS } from "@/lib/worker-capabilities.mjs";
-import { scopeFrom } from "@/lib/claude-invocation.mjs";
+import { claudeModelArgs, scopeFrom } from "@/lib/claude-invocation.mjs";
 import { fencingReport } from "@/lib/cli-fencing.mjs";
 import type { CliSpec } from "@/lib/clis";
 
@@ -55,6 +55,10 @@ export function runPlanner(opts: {
   cliId: string | undefined;
   spec: CliSpec;
   binPath: string;
+  /** From resolveRunModel(). Never undefined by accident: a caller that forgot
+   *  it would silently fall back to the CLI's own default model, which is the
+   *  billable path cli-model.mjs exists to close. */
+  model: string | null;
   prompt: string;
   fieldCount: number;
   cwd: string;
@@ -62,15 +66,15 @@ export function runPlanner(opts: {
   t0: number;
   log: (m: string) => void;
 }): Promise<PlannerRun> {
-  const { cliId, spec, binPath, prompt, fieldCount, cwd, t0, log } = opts;
+  const { cliId, spec, binPath, model, prompt, fieldCount, cwd, t0, log } = opts;
 
   const isClaude = cliId === "claude";
   // --strict-mcp-config with no --mcp-config = load ZERO MCP servers → much
   // faster startup (skips the user's global playwright/gmail/linear/… servers
   // the planner doesn't need; it only reads local files).
   const args = isClaude
-    ? ["-p", prompt, "--permission-mode", "acceptEdits", "--strict-mcp-config", "--allowedTools", ADVISOR_SCOPE.allowed, "--disallowedTools", ADVISOR_SCOPE.disallowed]
-    : spec.args(prompt);
+    ? [...claudeModelArgs(model), "-p", prompt, "--permission-mode", "acceptEdits", "--strict-mcp-config", "--allowedTools", ADVISOR_SCOPE.allowed, "--disallowedTools", ADVISOR_SCOPE.disallowed]
+    : spec.args(prompt, model);
   // A runtime with no verified fencing mechanism plans with its default access.
   // log() is the caller's non-fatal channel; it surfaces in the collapsed
   // "Pre-fill diagnostics" drawer, which is where the other planner facts go

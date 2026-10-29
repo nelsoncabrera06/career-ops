@@ -5,8 +5,9 @@ import path from "node:path";
 import { resolveCli } from "@/lib/clis";
 import { careerOpsRoot } from "@/lib/career-ops";
 import { CAPS } from "@/lib/worker-capabilities.mjs";
-import { scopeFrom } from "@/lib/claude-invocation.mjs";
+import { claudeModelArgs, scopeFrom } from "@/lib/claude-invocation.mjs";
 import { fencingReport } from "@/lib/cli-fencing.mjs";
+import { resolveRunModel } from "@/lib/run-model";
 
 // Deny list DERIVED, never hand-written: every one of the six advisor argvs
 // that spelled its own omitted MultiEdit, which --permission-mode acceptEdits
@@ -106,10 +107,15 @@ export async function POST(req: Request) {
     return Response.json({ error: `CLI '${cliId}' not found on this machine` }, { status: 404 });
   }
   const { spec, binPath } = resolved;
+  // Refuse before spending when the runtime has no model we can name — see
+  // cli-model.mjs.
+  const runModel = resolveRunModel(spec, binPath);
+  if (!runModel.ok) return Response.json({ error: runModel.error }, { status: 400 });
   const prompt = ingestPrompt(promptSource);
   const isClaude = cliId === "claude";
   const args = isClaude
     ? [
+        ...claudeModelArgs(runModel.model),
         "-p",
         prompt,
         "--output-format",
@@ -125,7 +131,7 @@ export async function POST(req: Request) {
         "--disallowedTools",
         ADVISOR_SCOPE.disallowed,
       ]
-    : spec.args(prompt);
+    : spec.args(prompt, runModel.model);
 
   let child;
   try {

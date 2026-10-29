@@ -25,6 +25,9 @@
         <span>CLI que redacta</span>
         <select id="cliSelect"></select>
       </label>
+      <!-- The CLI name alone does not say what a run costs. Filled from
+           /api/clis, which resolves it with the same policy the routes use. -->
+      <div class="hint" id="modelHint"></div>
       <div class="hint" id="settingsHint">
         La app local tiene que estar corriendo (<code>cd web &amp;&amp; npm run dev</code>) y su
         <code>.env.local</code> debe incluir el origen de esta extensión. Ver <code>extension/README.md</code>.

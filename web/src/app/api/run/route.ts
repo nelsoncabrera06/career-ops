@@ -6,6 +6,8 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { resolveCli } from "@/lib/clis";
+import { resolveRunModel } from "@/lib/run-model";
+import { modelLabel } from "@/lib/cli-model.mjs";
 import { localISODate } from "@/lib/followups";
 import { accumulateTokens, hasNewCompletedReport, isFatalGenericStderr, killMsForKind, timeoutMessage } from "@/lib/run-cli-support.mjs";
 import { spawnHeadlessCli } from "@/lib/spawn-cli.mjs";
@@ -146,7 +148,18 @@ export async function POST(req: Request) {
   // A CLI with its own structured stream gets the argv that turns it on, so its
   // stdout matches spec.parseEvent below; spec.args stays the plain-text argv the
   // envelope-parsing routes rely on.
-  const args = isClaude ? claudeCliArgs({ kind, prompt }) : (spec.streamArgs ?? spec.args)(prompt);
+  //
+  // The MODEL is resolved (and can be refused) before any argv is built: a
+  // runtime with no model pinned falls back to its own default, and opencode's
+  // default has billed a paid OpenRouter model on this machine. See
+  // cli-model.mjs for the policy and run-model.ts for the inputs it reads.
+  // Refusing here costs nothing: the tracker write token is acquired further
+  // down, so there is no guard to release on this path.
+  const runModel = resolveRunModel(spec, binPath);
+  if (!runModel.ok) {
+    return Response.json({ error: runModel.error }, { status: 400 });
+  }
+  const args = isClaude ? claudeCliArgs({ kind, prompt, model: runModel.model }) : (spec.streamArgs ?? spec.args)(prompt, runModel.model);
 
   // For write-needing kinds, snapshot reports/ so we can verify the worker
   // actually persisted (non-Claude CLIs lack Write auth and silently no-op).
@@ -300,6 +313,10 @@ export async function POST(req: Request) {
       // the saved run log both render in full. The worker card shows only the
       // latest step, so it also carries a sticky notice, matched via
       // isFencingNotice() rather than a literal spelled in two files.
+      // Which model this run actually uses, stated up front. Two runs whose
+      // logs look identical can differ 20x in cost, and the only way to notice
+      // is to show it before the tokens are spent rather than after.
+      send({ type: "status", label: modelLabel(spec.name, runModel), cliId, model: runModel.model, modelSource: runModel.source, paid: runModel.paid });
       const fencing = fencingReport({ cliId, cliName: spec.name, capabilities: capabilitiesFor(kind) });
       if (fencing.notice) send({ type: "status", label: fencing.notice });
       // Time-based keepalive. The stream is silent whenever the agent is thinking

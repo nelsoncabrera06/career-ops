@@ -98,6 +98,12 @@ code {
   background: #c2453a;
 }
 
+/* A PAID model is not an error, but it is the difference between a free run and
+   the one that billed ~$0.90 for five forms — worth a colour of its own. */
+.dot.warn {
+  background: #c98a1c;
+}
+
 .status {
   margin-left: auto;
   color: var(--muted);

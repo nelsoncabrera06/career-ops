@@ -4,6 +4,8 @@ import { resolveCli, detectClis } from "@/lib/clis";
 import { pickDefaultInstalled } from "@/lib/cli-pick.mjs";
 import { careerOpsRoot, readMemory } from "@/lib/career-ops";
 import { buildAnswerPrompt } from "@/lib/apply/answer-prompt.mjs";
+import { resolveRunModel } from "@/lib/run-model";
+import { modelLabel } from "@/lib/cli-model.mjs";
 import { normalizeExtensionRequest, planTitle } from "@/lib/apply/extension-request.mjs";
 import { runPlanner } from "@/lib/apply/planner";
 import { extractJsonObject } from "@/lib/extract-json-object.mjs";
@@ -61,6 +63,14 @@ export async function POST(req: Request) {
   }
   const { spec, binPath } = resolved;
 
+  // Which model this run is allowed to use. Refusing HERE, before a stream is
+  // opened, is deliberate: a run with no resolved model is what let opencode
+  // fall back to a paid OpenRouter default and bill ~$0.90 for five forms.
+  const runModel = resolveRunModel(spec, binPath);
+  if (!runModel.ok) {
+    return Response.json({ error: runModel.error }, { status: 400 });
+  }
+
   const t0 = Date.now();
   const encoder = new TextEncoder();
   const logPath = path.join(careerOpsRoot(), ".career-ops-web", "extension-answers.log");
@@ -107,14 +117,19 @@ export async function POST(req: Request) {
       const mem = readMemory().trim();
       const prompt = buildAnswerPrompt({ title, fields, memory: mem });
 
+      // Say WHICH model, not just which CLI. Two runs that read identically in
+      // the log can differ 20x in cost, and the extension panel is the only
+      // place the user sees this before approving the answers.
+      emit({ t: "run", cliId, cliName: spec.name, model: runModel.model, source: runModel.source, paid: runModel.paid });
       log(`Form: "${title}" · ${fields.length} fields · prompt ${prompt.length} chars`);
-      log(`Planner: ${cliId} (${binPath})`);
+      log(`Planner: ${modelLabel(spec.name, runModel)} (${binPath})`);
       emit({ t: "form", title, fields: fields.length });
 
       const result = await runPlanner({
         cliId,
         spec,
         binPath,
+        model: runModel.model,
         prompt,
         fieldCount: fields.length,
         cwd: careerOpsRoot(),

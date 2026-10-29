@@ -6,6 +6,8 @@ import { getSession } from "@/lib/apply/session";
 import { buildAnswerPrompt } from "@/lib/apply/answer-prompt.mjs";
 import { runPlanner } from "@/lib/apply/planner";
 import { extractJsonObject } from "@/lib/extract-json-object.mjs";
+import { resolveRunModel } from "@/lib/run-model";
+import { modelLabel } from "@/lib/cli-model.mjs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -78,15 +80,22 @@ export async function POST(req: Request) {
       if (!resolved) return fail(`CLI '${cliId}' not found on this machine`);
       const { spec, binPath } = resolved;
 
+      // Refuse before spending: a run with no resolved model is what let
+      // opencode fall back to a paid default (see cli-model.mjs).
+      const runModel = resolveRunModel(spec, binPath);
+      if (!runModel.ok) return fail(runModel.error);
+
       const mem = readMemory().trim();
       const prompt = buildAnswerPrompt({ title: s.title, fields: s.fields, memory: mem });
 
       log(`Form: "${s.title}" · ${s.fields.length} fields · prompt ${prompt.length} chars · memory ${mem.length} chars`);
-      log(`Planner: ${cliId} (${binPath})`);
+      emit({ t: "run", cliId, cliName: spec.name, model: runModel.model, source: runModel.source, paid: runModel.paid });
+      log(`Planner: ${modelLabel(spec.name, runModel)} (${binPath})`);
       const result = await runPlanner({
         cliId,
         spec,
         binPath,
+        model: runModel.model,
         prompt,
         fieldCount: s.fields.length,
         cwd: careerOpsRoot(),

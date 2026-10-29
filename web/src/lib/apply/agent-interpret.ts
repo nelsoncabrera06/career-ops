@@ -1,10 +1,11 @@
 import { spawnHeadlessCli } from "@/lib/spawn-cli.mjs";
 import type { Frame } from "playwright-core";
 import { resolveCli } from "@/lib/clis";
+import { resolveRunModel } from "@/lib/run-model";
 import { careerOpsRoot } from "@/lib/career-ops";
 import type { ApplyField } from "./extract";
 import { CAPS } from "../worker-capabilities.mjs";
-import { scopeFrom } from "../claude-invocation.mjs";
+import { claudeModelArgs, scopeFrom } from "../claude-invocation.mjs";
 
 // Deny list DERIVED, never hand-written: every one of the six advisor argvs
 // that spelled its own omitted MultiEdit, which --permission-mode acceptEdits
@@ -89,9 +90,15 @@ Return ONLY a JSON array, no prose, no code fence:
 // Takes cliId rather than a precomputed isClaude: spawnHeadlessCli needs the id
 // to pick this runtime's permission mechanism, and deriving the boolean here
 // keeps the two from disagreeing about which CLI is being run.
-function runPlanner(binPath: string, cliId: string, argsFor: (p: string) => string[], prompt: string): Promise<string> {
+function runPlanner(
+  binPath: string,
+  cliId: string,
+  argsFor: (p: string, model?: string | null) => string[],
+  prompt: string,
+  model: string | null,
+): Promise<string> {
   const isClaude = cliId === "claude";
-  const args = isClaude ? ["-p", prompt, "--permission-mode", "acceptEdits", "--strict-mcp-config", "--allowedTools", ADVISOR_SCOPE.allowed, "--disallowedTools", ADVISOR_SCOPE.disallowed] : argsFor(prompt);
+  const args = isClaude ? [...claudeModelArgs(model), "-p", prompt, "--permission-mode", "acceptEdits", "--strict-mcp-config", "--allowedTools", ADVISOR_SCOPE.allowed, "--disallowedTools", ADVISOR_SCOPE.disallowed] : argsFor(prompt, model);
   return new Promise((resolve) => {
     // Reads the captured controls and returns JSON — the narrowest scope here:
     // the Claude branch allows Read alone and denies fetching outright.
@@ -129,7 +136,13 @@ type Interpreted = { n: number; skip?: boolean; label?: string; type?: string; o
  *  independent — a launched agent can return nothing usable, and a missing CLI
  *  or an empty form never launches one — and the fencing notice the callers
  *  surface is about the launch, not about the result (#2507). */
-export type AgentInterpretation = { fields: ApplyField[]; spawned: boolean };
+export type AgentInterpretation = {
+  fields: ApplyField[];
+  spawned: boolean;
+  /** Set when the launch was REFUSED before spawning (no resolvable model), so
+   *  a caller can say why instead of reporting an empty interpretation. */
+  refused?: string;
+};
 
 /** The agentic interpreter: capture the live form, let the LLM read+classify it,
  *  re-tag the chosen controls with data-co-field, and return clean ApplyField[]
@@ -138,13 +151,18 @@ export type AgentInterpretation = { fields: ApplyField[]; spawned: boolean };
 export async function interpretFormWithAgent(frame: Frame, cliId: string, title: string): Promise<AgentInterpretation> {
   const resolved = resolveCli(cliId);
   if (!resolved) return { fields: [], spawned: false };
+  // Same refusal as every other CLI-invoking surface: no resolved model means
+  // the runtime picks its own, which is how a paid OpenRouter default got billed
+  // here before. 
+  const runModel = resolveRunModel(resolved.spec, resolved.binPath);
+  if (!runModel.ok) return { fields: [], spawned: false, refused: runModel.error };
   const cands = await captureCandidates(frame).catch(() => [] as Cand[]);
   if (!cands.length) return { fields: [], spawned: false };
 
   // From here on the CLI has been launched: every early return below still
   // reports spawned: true, so a caller can warn about an unfenced runtime even
   // when the interpretation came back empty.
-  const out = await runPlanner(resolved.binPath, cliId, resolved.spec.args, buildPrompt(title, cands));
+  const out = await runPlanner(resolved.binPath, cliId, resolved.spec.args, buildPrompt(title, cands), runModel.model);
   const m = out.match(/\[[\s\S]*\]/);
   if (!m) return { fields: [], spawned: true };
   let parsed: Interpreted[];

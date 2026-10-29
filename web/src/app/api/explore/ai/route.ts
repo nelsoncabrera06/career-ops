@@ -6,9 +6,10 @@ import { resolveCli } from "@/lib/clis";
 import { careerOpsRoot, readMemory } from "@/lib/career-ops";
 import { assembleDedupContext } from "@/lib/core/discover";
 import { CAPS } from "@/lib/worker-capabilities.mjs";
-import { scopeFrom } from "@/lib/claude-invocation.mjs";
+import { claudeModelArgs, scopeFrom } from "@/lib/claude-invocation.mjs";
 import { fencingReport } from "@/lib/cli-fencing.mjs";
 import { codexFencingSupported } from "@/lib/cli-fencing-probe.mjs";
+import { resolveRunModel } from "@/lib/run-model";
 
 // Deny list DERIVED, never hand-written: every one of the six advisor argvs
 // that spelled its own omitted MultiEdit, which --permission-mode acceptEdits
@@ -57,6 +58,10 @@ export async function POST(req: Request) {
   const resolved = resolveCli(cliId);
   if (!resolved) return Response.json({ error: `CLI '${cliId}' not found on this machine` }, { status: 404 });
   const { spec, binPath } = resolved;
+  // Refuse before spending when the runtime has no model we can name — see
+  // cli-model.mjs.
+  const runModel = resolveRunModel(spec, binPath);
+  if (!runModel.ok) return Response.json({ error: runModel.error }, { status: 400 });
 
   // Read the CANONICAL mode at request time — single source of truth, never a
   // homegrown prompt. Missing (older core) → graceful 400 so the Scan tab stays usable.
@@ -117,6 +122,7 @@ export async function POST(req: Request) {
 
   const args = isClaude
     ? [
+        ...claudeModelArgs(runModel.model),
         "-p",
         prompt,
         "--output-format",
@@ -147,7 +153,7 @@ export async function POST(req: Request) {
           codexResultFile!,
           prompt,
         ]
-      : spec.args(prompt);
+      : spec.args(prompt, runModel.model);
 
   // POSIX detached children become process-group leaders. Keeping stdio
   // piped means Node still tracks the Codex process normally.

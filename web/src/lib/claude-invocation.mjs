@@ -154,9 +154,29 @@ export function grantsWriteCapability(scope) {
  * @param {{kind: string, prompt: string}} args
  * @returns {string[]}
  */
-export function claudeCliArgs({ kind, prompt }) {
+/**
+ * The `--model` pair for a resolved model, or nothing when there is none.
+ *
+ * One helper because the claude argv is built in six places (this module plus
+ * the assistant, cv/ingest, explore/ai, the apply planner and the agentic
+ * interpreter) and a model that is resolved but never passed is worse than no
+ * model at all: the badge would name a model the run did not receive.
+ *
+ * @param {string|null|undefined} model
+ * @returns {string[]}
+ */
+export function claudeModelArgs(model) {
+  return model ? ["--model", model] : [];
+}
+
+/**
+ * @param {{ kind: string, prompt: string, model?: string|null }} argv
+ * @returns {string[]}
+ */
+export function claudeCliArgs({ kind, prompt, model = null }) {
   const scope = toolScopeFor(kind);
   return [
+    ...claudeModelArgs(model),
     "-p", prompt,
     "--output-format", "stream-json",
     "--verbose",

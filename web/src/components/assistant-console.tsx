@@ -224,6 +224,41 @@ export function AssistantConsole() {
     return () => window.removeEventListener("storage", read);
   }, []);
 
+  // What that CLI would actually run on. The header used to say `via pi`, which
+  // names the runtime but not the cost: two runs can look identical there and
+  // differ 20x. /api/clis resolves it with the same policy the routes apply
+  // (cli-model.mjs), so this is a preview of the real thing, not a guess.
+  // `label` comes pre-rendered from /api/clis (CLI name · model, with the paid
+  // marker applied by cli-model.mjs). The client must not re-derive that rule:
+  // it suppresses the marker for the user's own pi pin, which bills but is
+  // expected, and a second copy here would drift.
+  const [modelByCli, setModelByCli] = useState<Record<string, { label: string }>>({});
+  useEffect(() => {
+    if (!open) return;
+    let alive = true;
+    fetch("/api/clis", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!alive || !data?.clis) return;
+        const next: Record<string, { label: string }> = {};
+        for (const c of data.clis) {
+          if (!c?.id || !c.installed || !c.label) continue;
+          next[c.id] = { label: c.label };
+        }
+        setModelByCli(next);
+      })
+      .catch(() => {
+        /* header falls back to the bare CLI id */
+      });
+    return () => {
+      alive = false;
+    };
+  }, [open, cliId]);
+
+  // `Pi · deepseek/deepseek-v4.1-flash-1017`. Falls back to the bare id when
+  // /api/clis has not answered yet — never to a guessed model name.
+  const cliLabel = cliId ? (modelByCli[cliId]?.label ?? `via ${cliId}`) : "no CLI configured";
+
   // restore + persist conversation
   useEffect(() => {
     try {
@@ -545,7 +580,7 @@ export function AssistantConsole() {
             <CoMark size={26} />
             <div className="flex-1">
               <div className="text-sm font-semibold tracking-tight">Assistant</div>
-              <div className="text-xs text-faint">{cliId ? `via ${cliId}` : "no CLI configured"}</div>
+              <div className="text-xs text-faint">{cliLabel}</div>
             </div>
             <Button variant="ghost" size="icon" onClick={cycleSize} className="text-muted" aria-label={SIZE_LABEL[size]} title={SIZE_LABEL[size]}>
               {size === "full" ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}

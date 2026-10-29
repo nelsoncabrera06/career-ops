@@ -13,8 +13,13 @@ export type CliSpec = {
   url: string;
   /** headless invocation args for a single prompt, emitting PLAIN TEXT on stdout.
    * Every caller that reads the output itself (the `<<offer:>>`/`<<cv:>>` envelope
-   * routes, the apply planners) uses this, so it must stay unstructured. */
-  args: (prompt: string) => string[];
+   * routes, the apply planners) uses this, so it must stay unstructured.
+   *
+   * `model` comes from the run-model policy (cli-model.mjs). It is OPTIONAL so
+   * existing call sites keep working, but a CLI that accepts a model flag MUST
+   * spell it here: without one it resolves its own default, and opencode's
+   * default once billed a paid OpenRouter model on this machine. */
+  args: (prompt: string, model?: string | null) => string[];
   /** Structured-output CLIs only: args for a run whose stdout the caller parses
    * with `parseEvent` — i.e. /api/run's dashboard stream, the one consumer that
    * understands events. Absent → that caller falls back to `args`.
@@ -23,7 +28,7 @@ export type CliSpec = {
    * claude, by claude-invocation.mjs's `claudeCliArgs`, which spells its own
    * `--output-format stream-json`). Pairing one CLI's parser with a plain-text
    * invocation yields a silent stream of unparseable lines. */
-  streamArgs?: (prompt: string) => string[];
+  streamArgs?: (prompt: string, model?: string | null) => string[];
   /** Structured-output CLIs only: parse one stdout line into dashboard events.
    * Absent → the route streams stdout as raw text (the default for every CLI
    * without its own structured output format). */
@@ -57,10 +62,13 @@ export type CliSpec = {
  * lives in a comment is a rule the next contributor may never read.
  */
 export const KNOWN: CliSpec[] = [
-  { id: "claude", name: "Claude Code", bin: "claude", run: "claude -p", url: "https://claude.ai/code", args: (p) => ["-p", p], parseEvent: parseClaudeEvent, stderrIsFatal: isFatalClaudeStderr },
-  { id: "codex", name: "Codex", bin: "codex", run: "codex exec", url: "https://github.com/openai/codex", args: (p) => ["exec", p], streamArgs: codexStreamArgs, parseEvent: parseCodexEvent, stderrIsFatal: isFatalCodexStderr },
+  { id: "claude", name: "Claude Code", bin: "claude", run: "claude -p", url: "https://claude.ai/code", args: (p, m) => [...(m ? ["--model", m] : []), "-p", p], parseEvent: parseClaudeEvent, stderrIsFatal: isFatalClaudeStderr },
+  { id: "codex", name: "Codex", bin: "codex", run: "codex exec", url: "https://github.com/openai/codex", args: (p, m) => ["exec", ...(m ? ["-m", m] : []), p], streamArgs: codexStreamArgs, parseEvent: parseCodexEvent, stderrIsFatal: isFatalCodexStderr },
   { id: "gemini", name: "Gemini CLI", bin: "gemini", run: "gemini -p", url: "https://github.com/google-gemini/gemini-cli", args: (p) => ["-p", p] },
-  { id: "opencode", name: "OpenCode", bin: "opencode", run: "opencode run", url: "https://opencode.ai", args: (p) => ["run", p] },
+  // --model is not decoration: without it `opencode run` resolves the CLI's own
+  // default, which is NOT the model picked in the TUI and has billed a paid
+  // OpenRouter model on this machine. See cli-model.mjs.
+  { id: "opencode", name: "OpenCode", bin: "opencode", run: "opencode run", url: "https://opencode.ai", args: (p, m) => ["run", ...(m ? ["--model", m] : []), p] },
   // Pi's `--mode json` is its OWN frame schema (message_update/text_delta, then
   // a whole-transcript agent_end) — not Claude's, not Grok's. Structured on both
   // paths so the chat streams text as it arrives instead of appearing to hang
@@ -71,8 +79,8 @@ export const KNOWN: CliSpec[] = [
     bin: "pi",
     run: "pi -p",
     url: "https://github.com/earendil-works/pi",
-    args: (p) => ["--no-session", "-p", p],
-    streamArgs: (p) => ["--no-session", "-p", "--mode", "json", p],
+    args: (p, m) => ["--no-session", ...(m ? ["--model", m] : []), "-p", p],
+    streamArgs: (p, m) => ["--no-session", ...(m ? ["--model", m] : []), "-p", "--mode", "json", p],
     parseEvent: parsePiEvent,
   },
   { id: "copilot", name: "GitHub Copilot CLI", bin: "copilot", run: "copilot -p", url: "https://docs.github.com/en/copilot/github-copilot-in-the-cli", args: (p) => ["-p", p] },

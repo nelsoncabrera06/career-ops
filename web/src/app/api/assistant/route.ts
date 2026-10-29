@@ -2,8 +2,10 @@ import { spawnHeadlessCli } from "@/lib/spawn-cli.mjs";
 import { resolveCli } from "@/lib/clis";
 import { careerOpsRoot, readMemory, doctorState } from "@/lib/career-ops";
 import { CAPS } from "@/lib/worker-capabilities.mjs";
-import { scopeFrom } from "@/lib/claude-invocation.mjs";
+import { claudeModelArgs, scopeFrom } from "@/lib/claude-invocation.mjs";
 import { fencingReport } from "@/lib/cli-fencing.mjs";
+import { resolveRunModel } from "@/lib/run-model";
+import { modelLabel } from "@/lib/cli-model.mjs";
 
 // Deny list DERIVED, never hand-written: every one of the six advisor argvs
 // that spelled its own omitted MultiEdit, which --permission-mode acceptEdits
@@ -75,6 +77,10 @@ export async function POST(req: Request) {
     });
   }
   const { spec, binPath } = resolved;
+  // Which model this chat turn is allowed to use. Refused up front when the
+  // runtime has no model we can name — see cli-model.mjs.
+  const runModel = resolveRunModel(spec, binPath);
+  if (!runModel.ok) return Response.json({ error: runModel.error }, { status: 400 });
 
   const history = (body.history ?? []).slice(-8);
   const convo = history.map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`).join("\n");
@@ -112,6 +118,7 @@ export async function POST(req: Request) {
   // so the advisor can read (and WebFetch) but never blind-writes or shells out.
   const args = isClaude
     ? [
+        ...claudeModelArgs(runModel.model),
         "-p",
         prompt,
         "--output-format",
@@ -131,8 +138,8 @@ export async function POST(req: Request) {
         ADVISOR_SCOPE.disallowed,
       ]
     : structured
-      ? (spec.streamArgs ?? spec.args)(prompt)
-      : spec.args(prompt);
+      ? (spec.streamArgs ?? spec.args)(prompt, runModel.model)
+      : spec.args(prompt, runModel.model);
 
   // The advisor reads and fetches but must never write — the same intent the
   // Claude branch spells as Read,WebFetch,Glob,Grep with Bash/Write/Edit denied.
@@ -203,6 +210,9 @@ export async function POST(req: Request) {
       // runs with its default access, and that must be visible rather than
       // inferred from which CLI happens to be selected (#2507). This stream is
       // plain text, so the notice is a leading line rather than an event.
+      // Name the model before the tokens are spent. This stream is plain text,
+      // so it is a leading line rather than an event, like the fencing notice.
+      safeEnqueue(`🔧 ${modelLabel(spec.name, runModel)}\n\n`);
       const fencing = fencingReport({ cliId, cliName: spec.name, capabilities: CAPS.networkReadOnly });
       if (fencing.notice) safeEnqueue(`⚠️ ${fencing.notice}
 
