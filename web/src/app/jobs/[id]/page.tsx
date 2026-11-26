@@ -4,7 +4,7 @@ import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { ArrowLeft, Loader2, Wrench, CircleDot, Check, X, RotateCcw, ExternalLink } from "lucide-react";
+import { ArrowLeft, Loader2, Wrench, CircleDot, Check, X, RotateCcw, ExternalLink, ChevronDown } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useJobs } from "@/components/jobs/job-store";
 import { HeroGlow } from "@/components/hero-glow";
@@ -110,25 +110,40 @@ export default function JobPage({ params }: { params: Promise<{ id: string }> })
         </div>
       </section>
 
-      <ol className="mt-6 space-y-2">
-        {job.steps.map((s, i) => (
-          <li key={i} className="flex items-start gap-2.5 text-sm">
-            {s.kind === "tool" ? (
-              <Wrench className="mt-0.5 size-3.5 shrink-0 text-brand" />
-            ) : (
-              <CircleDot className="mt-0.5 size-3.5 shrink-0 text-faint" />
-            )}
-            <span className={s.kind === "tool" ? "font-medium" : "text-muted"}>
-              {s.kind === "tool" ? `Using ${s.label}` : s.label}
-            </span>
-          </li>
-        ))}
-        {job.status === "running" && (
-          <li className="flex items-center gap-2.5 text-sm text-muted">
-            <Loader2 className="size-3.5 animate-spin text-brand" /> thinking…
-          </li>
-        )}
-      </ol>
+      {/* The step timeline is technical detail (tool calls, status lines, the
+          model/fencing preamble). Collapsed by default so the answer is the
+          page: the summary still carries the live indicator while running, and
+          the Output below is always visible. */}
+      <details className="group mt-6 rounded-xl border border-border bg-surface/30">
+        <summary className="flex cursor-pointer select-none items-center gap-2 px-4 py-3 text-sm text-muted">
+          {job.status === "running" ? (
+            <Loader2 className="size-3.5 shrink-0 animate-spin text-brand" />
+          ) : (
+            <Wrench className="size-3.5 shrink-0 text-faint" />
+          )}
+          <span>
+            {job.status === "running"
+              ? "Thinking…"
+              : `Activity · ${job.steps.length} ${job.steps.length === 1 ? "step" : "steps"}`}
+          </span>
+          <ChevronDown className="ml-auto size-4 shrink-0 text-faint transition-transform group-open:rotate-180" />
+        </summary>
+        <ol className="space-y-2 px-4 pb-4">
+          {job.steps.map((s, i) => (
+            <li key={i} className="flex items-start gap-2.5 text-sm">
+              {s.kind === "tool" ? (
+                <Wrench className="mt-0.5 size-3.5 shrink-0 text-brand" />
+              ) : (
+                <CircleDot className="mt-0.5 size-3.5 shrink-0 text-faint" />
+              )}
+              <span className={s.kind === "tool" ? "font-medium" : "text-muted"}>
+                {s.kind === "tool" ? `Using ${s.label}` : s.label}
+              </span>
+            </li>
+          ))}
+          {job.steps.length === 0 && <li className="text-xs text-faint">No steps recorded yet.</li>}
+        </ol>
+      </details>
 
       {job.status === "error" && job.kind === "evaluate" && job.input && (
         <button

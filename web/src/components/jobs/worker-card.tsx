@@ -131,7 +131,7 @@ export function WorkerCard({
       </div>
       {(bottom || running) && (
         <div className={cn("mt-1 truncate text-faint", inline ? "text-xs" : "text-[10px]")}>
-          {running ? `${last ?? "Working"} · ${fmtElapsed(elapsed)}` : bottom}
+          {running ? `Thinking… · ${fmtElapsed(elapsed)}` : bottom}
         </div>
       )}
       {errorHint && (
@@ -139,9 +139,15 @@ export function WorkerCard({
           {errorHint.text}
         </div>
       )}
+      {/* The fencing notice stays VISIBLE (#2507: an unfenced run must not look
+          fenced) but compact: a chip with the full sentence as its tooltip, not
+          a paragraph under every worker. */}
       {fencing && (
-        <div className={cn("mt-1 text-amber-700 dark:text-amber-400", inline ? "text-xs" : "text-[10px]")}>
-          {fencing}
+        <div
+          title={fencing}
+          className={cn("mt-1 inline-flex items-center gap-1 text-amber-700 dark:text-amber-400", inline ? "text-xs" : "text-[10px]")}
+        >
+          <AlertTriangle className="size-3 shrink-0" /> default access
         </div>
       )}
       {tokens > 0 && (

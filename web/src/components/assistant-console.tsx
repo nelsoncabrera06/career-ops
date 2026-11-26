@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { dispatch, type ActionCtx, type DoneInfo } from "@/app/actions/registry";
 import { scoreNum } from "@/lib/format";
 import { pendingActOpenerStart } from "@/lib/act-envelope.mjs";
+import { splitRunMeta } from "@/lib/run-meta.mjs";
 import { cn } from "@/lib/cn";
 
 // ── message model: messages are PART arrays so a live worker card can render
@@ -695,9 +696,32 @@ function PartView({
 }) {
   if (part.type === "text") {
     if (!part.text.trim()) return null;
+    // The run's own preamble (which model, whether it is fenced) is honest but
+    // not the answer: fold it under a summary, keep the answer as the message.
+    const { meta, body } = splitRunMeta(part.text);
     return (
-      <div className="report-prose text-sm [&_*]:my-1 [&>:first-child]:mt-0 [&>:last-child]:mb-0">
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{part.text}</ReactMarkdown>
+      <div className="text-sm">
+        {meta.length > 0 && (
+          <details className="mb-2 rounded-lg border border-border/60 bg-surface/40 px-2.5 py-1.5 text-xs text-faint">
+            <summary className="cursor-pointer select-none">Run details</summary>
+            <div className="mt-1 space-y-0.5 font-mono text-[11px] leading-relaxed">
+              {meta.map((line, i) => (
+                <div key={i} className="break-words">{line}</div>
+              ))}
+            </div>
+          </details>
+        )}
+        {body ? (
+          <div className="report-prose [&_*]:my-1 [&>:first-child]:mt-0 [&>:last-child]:mb-0">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
+          </div>
+        ) : (
+          meta.length > 0 && (
+            <div className="flex items-center gap-2 text-xs text-muted">
+              <Loader2 className="size-3.5 animate-spin text-brand" /> Thinking…
+            </div>
+          )
+        )}
       </div>
     );
   }
