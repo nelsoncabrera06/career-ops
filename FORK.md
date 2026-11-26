@@ -75,6 +75,25 @@ Y de vez en cuando, un seguro fuera del repo (no incluye datos personales):
 git bundle create ~/career-ops-$(date +%F).bundle --all
 ```
 
+## Tests: usá Node 22, o NO_COLOR=1
+
+El repo declara `engines.node: ^22.13.0 || >=23.4.0`, pero con **Node 26** algunos
+tests fallan por un cambio de comportamiento de Node, no del código:
+`web/tests/lib/web-ts-alias-loader.test.mjs` compara la salida de un proceso hijo y
+Node 26 la colorea (`\x1b[33mtrue\x1b[39m`), así que `"true function"` no coincide.
+
+```bash
+NO_COLOR=1 npm --prefix web test        # cualquier Node
+# o, mejor, correr el repo con Node 22 LTS
+```
+
+Fallos conocidos que NO son tuyos (v1.40.0):
+
+- `clis-coverage.test.mjs`: `docs/SUPPORTED_CLIS.md` documenta Oh My Pi (`omp`)
+  pero `web/src/lib/clis.ts` no tiene la entrada. Gap de upstream.
+- `profile-write-shape.test.mjs` (10): la ruta `/api/profile` cambió de forma en
+  el refactor local y ese test todavía no la acompaña.
+
 ## Qué es divergencia real hoy
 
 Solo `web/` (más dos docs). El resto de tus "customizaciones" son archivos de user layer

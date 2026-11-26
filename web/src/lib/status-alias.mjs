@@ -62,6 +62,10 @@ export const STATUS_ALIAS = {
   iptal_edildi: "DISCARDED",
   "ıptal edildi": "DISCARDED",
   "ıptal_edildi": "DISCARDED",
+  // v1.40.0 added `lapsed` to states.yml's discarded aliases and shipped the
+  // dashboard map without it, so the parity test (#2917) failed on a clean
+  // checkout. states.yml is the source of truth; this mirrors it.
+  lapsed: "DISCARDED",
   duplicado: "DISCARDED", // web-only: not in states.yml
   repost: "DISCARDED", // web-only: not in states.yml
   // Assessment — states.yml `assessment` (#2917): online assessment or

@@ -51,12 +51,23 @@ function fakeCheckout({ profileAt = "config/profile.yml", template = "mine", pac
   // unresolved base would compare two spellings of the same directory.
   const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "cv-template-")));
   fs.copyFileSync(path.join(CORE, "cv-templates.mjs"), path.join(root, "cv-templates.mjs"));
-  // cv-templates.mjs imports ./lib/is-main-module.mjs, ./lib/template-manifest.mjs,
-  // ./providers/_html-entities.mjs and ./path-resolver.mjs (its default profile
-  // path follows the data root) relative to itself. Each is dependency-free
-  // beyond node builtins + this checkout's own files, so copying them is enough.
+  // cv-templates.mjs imports ./lib/yaml-document.mjs, ./lib/is-main-module.mjs,
+  // ./lib/template-manifest.mjs, ./providers/_html-entities.mjs and
+  // ./path-resolver.mjs (its default profile path follows the data root) relative
+  // to itself. Each is dependency-free beyond node builtins + this checkout's own
+  // files, so copying them is enough.
+  //
+  // yaml-document.mjs joined that list in v1.40.0 (cv-templates.mjs stopped
+  // importing js-yaml directly): the copy list here was not updated with it, so
+  // the fake checkout failed to load cv-templates.mjs and EVERY case below fell
+  // back to the base template — the exact silent fallback these tests exist to
+  // catch. Keep this list in step with cv-templates.mjs's imports.
   fs.mkdirSync(path.join(root, "lib"), { recursive: true });
   fs.mkdirSync(path.join(root, "providers"), { recursive: true });
+  fs.copyFileSync(
+    path.join(CORE, "lib", "yaml-document.mjs"),
+    path.join(root, "lib", "yaml-document.mjs"),
+  );
   fs.copyFileSync(
     path.join(CORE, "lib", "is-main-module.mjs"),
     path.join(root, "lib", "is-main-module.mjs"),
@@ -69,10 +80,17 @@ function fakeCheckout({ profileAt = "config/profile.yml", template = "mine", pac
     path.join(CORE, "providers", "_html-entities.mjs"),
     path.join(root, "providers", "_html-entities.mjs"),
   );
+  // And _html-entities.mjs imports its table from ./_html-entity-table.mjs — the
+  // second half of the same stale list.
+  fs.copyFileSync(
+    path.join(CORE, "providers", "_html-entity-table.mjs"),
+    path.join(root, "providers", "_html-entity-table.mjs"),
+  );
   fs.copyFileSync(path.join(CORE, "path-resolver.mjs"), path.join(root, "path-resolver.mjs"));
-  // js-yaml is a bare specifier: outside the checkout there is no node_modules on
-  // the way up, the import throws, and EVERY case below would fall back to the
-  // base template — i.e. pass for the reason the fix exists to remove.
+  // js-yaml is a bare specifier (reached through lib/yaml-document.mjs): outside
+  // the checkout there is no node_modules on the way up, the import throws, and
+  // EVERY case below would fall back to the base template — i.e. pass for the
+  // reason the fix exists to remove.
   fs.symlinkSync(path.join(CORE, "node_modules"), path.join(root, "node_modules"), "dir");
   // Every template must carry the placeholders validateTemplate() requires, or
   // resolveTemplate throws and the fallback would hide which case we are in.
