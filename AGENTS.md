@@ -117,6 +117,7 @@ AI-powered, CLI-agnostic job search automation: pipeline tracking, offer evaluat
 | `data/scan-runs.tsv` | Per-run scan counters (appended by `scan.mjs`, read by `stats.mjs`) |
 | `data/follow-ups.md` | Follow-up history tracker |
 | `data/job-notes.json` | The user's own free-form notes per job, keyed by **tracker#** (`{"85": {"text", "updated"}}`). Written only by the web UI's **My notes** box on `/pipeline/{n}` (`/api/notes` → `web/src/lib/job-notes.mjs`); no CLI writer. Kept out of the tracker's Notes column on purpose — that cell is the pipeline's evaluation summary (`set-status.mjs --note` appends, `--replace-note` replaces), so personal prose there would be appended-after or clobber it. Never a scoring input |
+| `data/web-settings.json` | The model choice Config saved for each AI engine (`{"version": 1, "models": {"opencode": "provider/model"}}`), written by `/api/models` → `web/src/lib/model-prefs.mjs`. Read server-side by `run-model.ts`, because the model policy (`cli-model.mjs`) is applied per run on the server — a `localStorage` value would be invisible to it. Absent entry = Automatic (free pick); `CAREER_OPS_MODEL_<CLI>` in the environment still wins |
 | `data/blacklist.md` | Do-not-apply companies (user layer, opt-in, never auto-populated; respected by `scan.mjs` and the `auto-pipeline`/`oferta`/`apply` gates) |
 | `data/salary-observations.tsv` | Append-only salary observation log (user layer) |
 | `data/assessments.tsv` | Append-only skills-assessment log (user layer, created on first `add`) |

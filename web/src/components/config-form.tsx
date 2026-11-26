@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { CadenceSettings } from "@/components/followups/cadence-settings";
+import { ModelPicker } from "@/components/model-picker";
 import { persistCliId, readSavedCliId } from "@/lib/saved-cli";
 import { keepIfInstalled, pickDefaultInstalled } from "@/lib/cli-pick.mjs";
 
@@ -229,6 +230,20 @@ export function ConfigForm() {
                 </p>
               </div>
             )}
+
+            {/* Engine ≠ model. The list above picks WHO runs the agent; this
+                picks WHICH model it runs, i.e. the provider a run bills and how
+                good the answers are. Kept apart on purpose: one engine can
+                reach many providers (OpenCode alone lists several), so folding
+                them into one picker made the provider look like the engine. */}
+            {cliId ? (
+              <div className="mt-8">
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-muted">
+                  AI Model
+                </label>
+                <ModelPicker cliId={cliId} cliName={clis?.find((c) => c.id === cliId)?.name ?? "this engine"} />
+              </div>
+            ) : null}
           </div>
         )}
 

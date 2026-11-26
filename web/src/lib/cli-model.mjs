@@ -17,14 +17,18 @@
  *   1. CAREER_OPS_MODEL_<CLIID>, then CAREER_OPS_MODEL — an explicit choice
  *      always wins. A non-free id is allowed here (the user asked for it) but is
  *      reported as `paid` so the UI can flag it instead of hiding it.
- *   2. opencode — a FREE model read from the live `opencode models` list at run
+ *   2. The model saved in the web app's Config (data/web-settings.json, read by
+ *      run-model.ts and passed in as `savedModel`). A choice beats every
+ *      automatic path, and is always handed to the CLI — an id that rotated out
+ *      of the live list is still the model the user asked for.
+ *   3. opencode — a FREE model read from the live `opencode models` list at run
  *      time. Nothing is pinned in code, so a rotation costs at worst a
  *      re-pick, never a silent paid run. NO free model resolves → the run is
  *      REFUSED. Falling back to opencode's own default is precisely the
  *      failure this module exists to prevent.
- *   3. pi — the `defaultModel` from the user's own `~/.pi/agent/settings.json`,
+ *   4. pi — the `defaultModel` from the user's own `~/.pi/agent/settings.json`,
  *      passed as `--model` so the run cannot drift from that pin either.
- *   4. anything else — REFUSED. Acceptance rule, stated once: every run either
+ *   5. anything else — REFUSED. Acceptance rule, stated once: every run either
  *      names the model it will use AND hands it to the CLI, or it does not run.
  *      A CLI we cannot pin (grok, copilot, qwen, antigravity, hermes: no model
  *      flag in their argv) has no second option but "whatever it decides", and
@@ -117,6 +121,7 @@ export function pickFreeModel(ids, prefer = DEFAULT_FREE_PREFER) {
  * @param {string[]|null} [opts.freeModels] from `opencode models`, or null when unknown
  * @param {string|null} [opts.freeListError] why the list could not be read
  * @param {string|null} [opts.piDefaultModel] `defaultModel` from pi's settings.json
+ * @param {string|null} [opts.savedModel] the choice Config saved (`data/web-settings.json`)
  * @param {string} [opts.prefer]
  * @returns {PlanOk|PlanFail}
  */
@@ -126,11 +131,23 @@ export function planCliModel({
   freeModels = null,
   freeListError = null,
   piDefaultModel = null,
+  savedModel = null,
   prefer = DEFAULT_FREE_PREFER,
 }) {
   const explicit = explicitModel(cliId, env);
   if (explicit) {
     return { ok: true, model: explicit, source: "env", paid: !isFreeModel(explicit) };
+  }
+
+  // The user's own pick in Config. Below `env` because the environment is the
+  // operator's escape hatch (a broken pick must be overridable without editing
+  // files), and above every automatic path because it is a choice, not a guess.
+  // It is ALWAYS handed to the CLI: a saved id that rotated out of the live list
+  // is still a model the user asked for, and silently substituting another one
+  // is the drift this module exists to prevent.
+  const saved = typeof savedModel === "string" ? savedModel.trim() : "";
+  if (saved) {
+    return { ok: true, model: saved, source: "saved", paid: !isFreeModel(saved) };
   }
 
   const allowUnpinned = (() => {

@@ -154,3 +154,47 @@ test("modelLabel shows the model, and marks a paid one", () => {
     "Pi · deepseek/deepseek-v4.1-flash-1017",
   );
 });
+
+// The model chosen in Config (data/web-settings.json) — a real user decision,
+// so it beats every automatic path but never the environment.
+test("the model saved in Config is used instead of the automatic free pick", () => {
+  const plan = planCliModel({
+    cliId: "opencode",
+    savedModel: "opencode-go/deepseek-v4.1-flash",
+    freeModels: FREE,
+  });
+  assert.deepEqual(plan, { ok: true, model: "opencode-go/deepseek-v4.1-flash", source: "saved", paid: true });
+});
+
+test("a saved model runs even when no free model exists (it is a choice, not a guess)", () => {
+  const plan = planCliModel({ cliId: "opencode", savedModel: "opencode-go/deepseek-v4.1-flash", freeModels: [] });
+  assert.equal(plan.ok, true);
+  assert.equal(plan.model, "opencode-go/deepseek-v4.1-flash");
+});
+
+test("the environment still wins over the saved choice (operator escape hatch)", () => {
+  const plan = planCliModel({
+    cliId: "opencode",
+    env: { CAREER_OPS_MODEL_OPENCODE: "opencode/beam-free" },
+    savedModel: "opencode-go/deepseek-v4.1-flash",
+    freeModels: FREE,
+  });
+  assert.deepEqual(plan, { ok: true, model: "opencode/beam-free", source: "env", paid: false });
+});
+
+test("a saved choice also beats pi's own settings pin", () => {
+  const plan = planCliModel({
+    cliId: "pi",
+    savedModel: "deepseek/deepseek-v4.1-flash-1017",
+    piDefaultModel: "deepseek/deepseek-v4.1-flash",
+  });
+  assert.equal(plan.model, "deepseek/deepseek-v4.1-flash-1017");
+  assert.equal(plan.source, "saved");
+});
+
+test("no saved choice falls back to the previous behaviour, unchanged", () => {
+  for (const savedModel of [null, undefined, "", "   "]) {
+    const plan = planCliModel({ cliId: "opencode", savedModel, freeModels: FREE });
+    assert.deepEqual(plan, { ok: true, model: "opencode/deepseek-v4.1-flash-free", source: "free-list", paid: false });
+  }
+});

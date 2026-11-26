@@ -3,6 +3,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { parseModelIds, planCliModel } from "./cli-model.mjs";
+import { savedModelFor } from "./model-prefs.mjs";
+import { careerOpsRoot } from "./career-ops";
 import type { CliSpec } from "./clis";
 
 /**
@@ -87,6 +89,26 @@ export type RunModel =
  * Only `opencode` can fail: it is the runtime whose "no model" path has a
  * history of picking a paid provider on its own.
  */
+/**
+ * The model Config saved for this CLI (`data/web-settings.json`), or null for
+ * "Automatic".
+ *
+ * Read from DISK on every resolution rather than cached: the Config page writes
+ * this file, and a cache would make a newly picked model apply only after a
+ * restart — the "I saved it and nothing changed" report that the engine pick
+ * already learned to avoid. It is a small JSON read, paid once per run.
+ *
+ * A broken/unreadable data root degrades to null (Automatic) instead of failing
+ * every route: the model is a preference, not a precondition.
+ */
+export function readSavedModelForCli(cliId: string): string | null {
+  try {
+    return savedModelFor(careerOpsRoot(), cliId);
+  } catch {
+    return null;
+  }
+}
+
 export function resolveRunModel(spec: CliSpec, binPath: string): RunModel {
   let freeModels: string[] | null = null;
   let freeListError: string | null = null;
@@ -101,6 +123,7 @@ export function resolveRunModel(spec: CliSpec, binPath: string): RunModel {
     freeModels,
     freeListError,
     piDefaultModel: spec.id === "pi" ? readPiDefaultModel() : null,
+    savedModel: readSavedModelForCli(spec.id),
   });
 }
 
