@@ -48,6 +48,12 @@ import { ENTITIES, LEGACY_NAMES } from './_html-entity-table.mjs';
 //
 // Unknown names still pass through untouched (see decodeEntities), so this list
 // is a floor, not a closed set.
+// `Record<string, string>` rather than the literal's own inferred type: both
+// lookups below are guarded (Object.hasOwn / CASE_INSENSITIVE_NAMES), but a
+// literal type has no index signature, so @ts-check rejected `ref`/`lower` —
+// values that are `any` out of String.replace — with TS7053. Same data, same
+// behaviour; the annotation only says out loud that the keys are dynamic.
+/** @type {Record<string, string>} */
 const NAMED_ENTITIES = {
   amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ',
   // French / Portuguese / Spanish / German / Nordic letters, lower and upper.
