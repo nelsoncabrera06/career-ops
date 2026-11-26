@@ -63,13 +63,36 @@ function tokenCount(value) {
 const FATAL_AUTH_STDERR_RE =
   /unauthorized|forbidden|not authenticated|please log in|sign[ -]?in required|credential.*missing/i;
 
+/**
+ * Remove ANSI colour/render sequences from one CLI line.
+ *
+ * CLIs colour stderr, and a reset sequence ends in a LETTER: opencode prints
+ * `"\x1b[91m\x1b[1mError: \x1b[0mFree usage limit reached…"`. The classifiers
+ * below are anchored (`\berror\b`) precisely so `auth` cannot match inside
+ * `author` — and the same anchors are why a coloured line never matched: `m`
+ * and `E` are both word characters, so there is no boundary there. A real
+ * quota failure was therefore classified as "no detail", and the UI told the
+ * user to check a sign-in that was fine. Stripping also keeps escape codes out
+ * of the snippet the run log shows.
+ */
+export function stripAnsi(line) {
+  // CSI sequences only (\x1b[ … final byte). That is every colour, bold and
+  // cursor code the agent CLIs in clis.ts emit on stderr.
+  return String(line ?? "").replace(/\u001b\[[0-9;?]*[A-Za-z]/g, "");
+}
+
 /** Quota/rate-limit failures — fatal like auth, EXCEPT when the line announces
  * its own retry: the CLI is handling it, and the run can still complete
  * cleanly. Same reasoning as CODEX_TRANSIENT_ERROR_RE, for the stderr channel —
  * flagging a self-retrying 429 fatal re-creates the false-red #2085 exists to
  * remove (sawError fails the honesty gate even on exit 0 with a written
  * report). Auth gets no such carve-out: it never heals by retrying. */
-const FATAL_QUOTA_STDERR_RE = /quota|rate limit/i;
+// `usage limit` is opencode's own wording for an exhausted plan ("Free usage
+// limit reached"). It is matched here rather than only in the generic fallback
+// because `usage limit reached` is a hard failure for every runtime — a plan
+// that is used up never heals by retrying (Claude spelled the same case in
+// CLAUDE_FATAL_STDERR_RE already).
+const FATAL_QUOTA_STDERR_RE = /quota|rate limit|usage limit/i;
 // Only a retry the CLI ANNOUNCES AS IN PROGRESS ("retrying", "retry in 5s",
 // "will retry") — a bare /retry/ would also match terminal wording like
 // "do not retry" or "retry limit exhausted" and silence a genuine failure.
@@ -145,7 +168,7 @@ export function isFatalGenericStderr(line) {
 }
 
 const GENERIC_FATAL_STDERR_RE =
-  /\berror\b|\bdenied\b|\bfatal\b|not found|\bunauthorized\b|\bforbidden\b|not authenticated|authentication failed|\blogin\b|log in|\bcredentials?\b|api[ -]?key|\bquota\b|rate limit/i;
+  /\berror\b|\bdenied\b|\bfatal\b|not found|\bunauthorized\b|\bforbidden\b|not authenticated|authentication failed|\blogin\b|log in|\bcredentials?\b|api[ -]?key|\bquota\b|rate limit|usage limit/i;
 
 /**
  * The argv that makes `codex exec` emit the JSONL `parseCodexEvent` reads.

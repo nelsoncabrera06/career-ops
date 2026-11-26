@@ -12,6 +12,8 @@
 //     raw CLI stderr matched for auth keywords                            (api/run/route.ts stderr handler)
 //     "The CLI exited with an error — is it installed and authenticated?"
 //     "The CLI produced no output — is it installed and authenticated? (...)"
+//   Plan/quota exhausted (opencode: "Free usage limit reached") -> "quota":
+//     "The CLI exited with an error: {the CLI's own stderr line}"
 //   Connection dropped mid-stream, CLI never got a chance to fail -> "connection":
 //     "Connection error"                                                  (job-store.tsx)
 //   Page reload orphaned a running job -> "interrupted":
@@ -27,7 +29,19 @@
 const AUTH_PATTERN =
   /authenticat\w*|login|sign[ -]?in|credential|api[ -]?key|unauthorized|no cli configured/i;
 
+// An exhausted model quota is NOT an auth failure, and yet the canned "no
+// output" label ends in "is it installed and authenticated?" — so it matched
+// AUTH_PATTERN and told the user to sign in to a CLI that was already signed
+// in (opencode: "Free usage limit reached. Connect a provider or subscribe to
+// OpenCode Go"). That is why quota is tested FIRST: the honest cause is the
+// plan, and the fix is a different model or a wait, never a login.
+const QUOTA_PATTERN = /usage limit|quota|rate limit|out of credits|credit balance/i;
+
 const HINTS = {
+  quota: {
+    kind: "quota",
+    text: "The model behind this run is out of quota — switch models (set CAREER_OPS_MODEL_OPENCODE=provider/model) or wait for the limit to reset, then re-run.",
+  },
   auth: { kind: "auth", text: "Sign your CLI in from Config, then re-run." },
   connection: { kind: "connection", text: "Lost connection to the local server — re-run." },
   interrupted: { kind: "interrupted", text: "The run was interrupted — re-run it." },
@@ -46,6 +60,7 @@ export function jobErrorHint(job) {
   if (!label) return null;
   if (label === "Connection error") return HINTS.connection;
   if (label === "Interrupted (page reloaded)") return HINTS.interrupted;
+  if (QUOTA_PATTERN.test(label)) return HINTS.quota;
   if (AUTH_PATTERN.test(label)) return HINTS.auth;
   return null;
 }

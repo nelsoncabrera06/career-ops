@@ -9,7 +9,7 @@ import { resolveCli } from "@/lib/clis";
 import { resolveRunModel } from "@/lib/run-model";
 import { modelLabel } from "@/lib/cli-model.mjs";
 import { localISODate } from "@/lib/followups";
-import { accumulateTokens, hasNewCompletedReport, isFatalGenericStderr, killMsForKind, timeoutMessage } from "@/lib/run-cli-support.mjs";
+import { accumulateTokens, hasNewCompletedReport, isFatalGenericStderr, killMsForKind, stripAnsi, timeoutMessage } from "@/lib/run-cli-support.mjs";
 import { spawnHeadlessCli } from "@/lib/spawn-cli.mjs";
 import { careerOpsRoot, readMemory, findReportFile, readInbox, readScanDates, readLanguageConfig } from "@/lib/career-ops";
 import { resolvePdfPaths, type PdfPaths } from "@/lib/pdf-paths.mjs";
@@ -260,7 +260,15 @@ export async function POST(req: Request) {
       // (authoritative — see the ev.error branch in processParsedLine); this only
       // captures human-readable detail for whichever message that decision needs.
       let stderrErrorSnippet: string | null = null;
-      const flagStderrLine = (line: string) => {
+      const flagStderrLine = (rawLine: string) => {
+        // ANSI codes are stripped BEFORE classifying: CLIs colour stderr, and a
+        // reset sequence ending in `m` is a word character, so
+        // "\x1b[91m\x1b[1mError: …" has no `\b` before "Error" and never matched
+        // the anchored generic regex. A real quota failure ("Free usage limit
+        // reached") then reached the UI as the generic "is it installed and
+        // authenticated?" — blaming auth for an exhausted plan. The same escapes
+        // must not end up in the snippet either, which is shown in the run log.
+        const line = stripAnsi(rawLine);
         if (stderrErrorSnippet || !line.trim() || !isFatalStderr(line)) return;
         stderrErrorSnippet = line.trim().slice(0, 200);
       };
@@ -502,8 +510,14 @@ export async function POST(req: Request) {
         // a PDF — one place for the condition/message pair instead of two.
         const noOutputError = (): string | null => {
           if (!emittedText && !sawError && !cleanExit) {
-            const detail = stderrErrorSnippet ? ` (${stderrErrorSnippet})` : "";
-            return `The CLI exited with an error — is it installed and authenticated?${detail}`;
+            // A captured stderr line IS the cause when we have one. Leading with
+            // "is it installed and authenticated?" claimed more than we knew —
+            // for an exhausted quota it sent the user to re-check a sign-in that
+            // was working. The canned wording is kept for the case nothing was
+            // captured, which is the only case where "check the CLI" is the
+            // honest advice left.
+            if (stderrErrorSnippet) return `The CLI exited with an error: ${stderrErrorSnippet}`.slice(0, 200);
+            return "The CLI exited with an error — is it installed and authenticated?";
           }
           if (!emittedText && !sawError) return "The CLI produced no output — is it installed and authenticated? (career-ops is best on Claude Code.)";
           return null;

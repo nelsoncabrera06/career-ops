@@ -125,3 +125,22 @@ test("done job -> no hint", () => {
 test("error job with no steps -> no hint (defensive)", () => {
   assert.equal(jobErrorHint({ status: "error", text: "", steps: [] }), null);
 });
+
+test("an exhausted model quota -> quota hint, NOT auth (the canned label says 'authenticated')", () => {
+  // The route used to append the CLI's stderr inside the "is it installed and
+  // authenticated?" sentence, so AUTH_PATTERN matched first and the card told
+  // the user to sign in — while opencode was saying the free plan's limit was
+  // used up. The real label now leads with the CLI's own message.
+  const hint = jobErrorHint(
+    errorJob("The CLI exited with an error: Error: Free usage limit reached. Connect a provider or subscribe to OpenCode Go to keep going, or switch models."),
+  );
+  assert.equal(hint?.kind, "quota");
+  assert.match(hint?.text ?? "", /out of quota.*switch models/i);
+});
+
+test("quota wins over auth wording in the same label", () => {
+  assert.equal(
+    jobErrorHint(errorJob("The CLI exited with an error — is it installed and authenticated? (Error: Free usage limit reached)"))?.kind,
+    "quota",
+  );
+});

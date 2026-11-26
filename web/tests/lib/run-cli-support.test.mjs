@@ -687,3 +687,38 @@ test("a timed-out run reads as a timeout, never as 'didn't save a report' (#3124
   assert.match(msg, /re-run|Claude Code/i, "it offers a next step");
   assert.doesNotMatch(msg, /didn't save a report/i, "a timeout must not be blamed on the CLI's ability to write");
 });
+
+// A coloured stderr line used to defeat the anchored classifiers: the reset
+// sequence "\x1b[91m\x1b[1m" ends in the word character `m`, so there is no
+// `\b` before "Error" and `\berror\b` never matched. opencode's real quota
+// failure then reached the UI as "is it installed and authenticated?" — the
+// wrong cause, pointing at a sign-in that was fine.
+import { stripAnsi } from "../../src/lib/run-cli-support.mjs";
+
+const OPENCODE_QUOTA_STDERR =
+  "\u001b[0m\n> build · deepseek-v4.1-flash-free\n\u001b[91m\u001b[1mError: \u001b[0mFree usage limit reached. Connect a provider or subscribe to OpenCode Go to keep going, or switch models.";
+
+test("stripAnsi removes SGR codes without touching the words", () => {
+  assert.equal(stripAnsi("\u001b[91m\u001b[1mError: \u001b[0mboom"), "Error: boom");
+  assert.equal(stripAnsi("plain line"), "plain line");
+});
+
+test("a coloured error line is recognised once ANSI is stripped", () => {
+  // The escape ends in `m`, a word character, so there is no `\b` before
+  // "Error" and the anchored alternative never fires...
+  const line = "\u001b[91m\u001b[1mError: \u001b[0msomething went wrong";
+  assert.equal(isFatalGenericStderr(line), false, "the anchored regex cannot see through the escape (the bug)");
+  // ...and the same line classifies once the codes are gone.
+  assert.equal(isFatalGenericStderr(stripAnsi(line)), true, "stripped, the real cause classifies");
+});
+
+test("opencode's coloured quota failure is captured, and its stored snippet is clean", () => {
+  const line = OPENCODE_QUOTA_STDERR.split("\n").find((l) => l.includes("Free usage limit"));
+  assert.ok(line, "fixture carries the error line");
+  assert.equal(isFatalGenericStderr(stripAnsi(line)), true);
+  assert.doesNotMatch(stripAnsi(line), /\u001b/, "no escapes survive into the snippet the run log shows");
+});
+
+test("'usage limit' counts as a quota failure even without the word error", () => {
+  assert.equal(isFatalGenericStderr("Free usage limit reached. Subscribe to keep going."), true);
+});
