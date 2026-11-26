@@ -10,10 +10,12 @@ import { useState } from "react";
 import { cn } from "@/lib/cn";
 import { CvEditor } from "@/components/cv-editor";
 import { MyDataForm } from "@/components/cv/my-data-form";
+import { ProfileView } from "@/components/cv/profile-view";
 
 const TABS = [
   { id: "cv", label: "CV" },
   { id: "data", label: "My data" },
+  { id: "profile", label: "Profile" },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -42,7 +44,7 @@ export function CvTabs({ initialTab = "cv" }: { initialTab?: TabId }) {
           ))}
         </div>
       </div>
-      {tab === "cv" ? <CvEditor /> : <MyDataForm />}
+      {tab === "cv" ? <CvEditor /> : tab === "data" ? <MyDataForm /> : <ProfileView />}
     </>
   );
 }
